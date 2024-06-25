@@ -4,7 +4,8 @@ import { PlusCircleIcon } from '@heroicons/react/outline';
 const Sidebar = ({ projects, handleProjectSelect, openNewProjectDialog }) => {
   return (
     <div className="h-full w-64 p-4 bg-gray-800 text-white flex flex-col">
-      <h2 className="text-2xl font-semibold mb-4">Projects</h2>
+      <h1 className="text-3xl font-bold mb-6">LangSync</h1>
+      <h2 className="text-xl font-semibold mb-4">Projects</h2>
       <ul className="space-y-2 flex-1 overflow-y-auto">
         {projects.map(project => (
           <li

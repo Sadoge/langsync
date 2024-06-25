@@ -223,60 +223,65 @@ const App = () => {
   const closeLanguageJsonDialog = () => setIsLanguageJsonDialogOpen(false);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-gray-100">
       <Sidebar projects={projects} handleProjectSelect={handleProjectSelect} openNewProjectDialog={openNewProjectDialog} />
-      <div className="flex-1 p-4">
-        <h1 className="text-2xl font-bold mb-4">LangSync</h1>
+      <div className="flex-1 p-6">
         {selectedProject && (
           <>
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold mb-2">Translations for {selectedProject.name}</h2>
-              <button onClick={openTranslationDialog} className="mb-2 px-4 py-2 bg-green-500 text-white rounded">
-                Add Translation
-              </button>
-              <table className="min-w-full border-collapse border border-gray-200">
-                <thead>
-                  <tr>
-                    <th className="border border-gray-200 px-4 py-2">Key</th>
-                    <th className="border border-gray-200 px-4 py-2">{mainLanguage}</th>
-                    {languages.filter(lang => lang !== mainLanguage).map(lang => (
-                      <th key={lang} className="border border-gray-200 px-4 py-2">
-                        {lang}
-                        <button
-                          onClick={() => openLanguageJsonDialog(lang)}
-                          className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-sm"
-                        >
-                          View JSON
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(translations).map(([key, { main_value, translations }]) => (
-                    <tr key={key}>
-                      <td className="border border-gray-200 px-4 py-2">{key}</td>
-                      <td className="border border-gray-200 px-4 py-2">{main_value}</td>
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-semibold">Translations for {selectedProject.name}</h2>
+                <button onClick={openTranslationDialog} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors">
+                  Add Translation
+                </button>
+              </div>
+              <div className="overflow-x-auto bg-white shadow-md rounded-lg">
+                <table className="min-w-full bg-white border border-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">Key</th>
+                      <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">{mainLanguage}</th>
                       {languages.filter(lang => lang !== mainLanguage).map(lang => (
-                        <td key={lang} className="border border-gray-200 px-4 py-2">{translations[lang]}</td>
+                        <th key={lang} className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">
+                          {lang}
+                          <button
+                            onClick={() => openLanguageJsonDialog(lang)}
+                            className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-400 transition-colors"
+                          >
+                            View JSON
+                          </button>
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white">
+                    {Object.entries(translations).map(([key, { main_value, translations }]) => (
+                      <tr key={key}>
+                        <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{key}</td>
+                        <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{main_value}</td>
+                        {languages.filter(lang => lang !== mainLanguage).map(lang => (
+                          <td key={lang} className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{translations[lang]}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="mt-4">
+            <div className="mt-6">
               <h3 className="text-lg font-semibold mb-2">Add New Language</h3>
-              <input
-                type="text"
-                placeholder="New Language"
-                value={newLanguage}
-                onChange={(e) => setNewLanguage(e.target.value)}
-                className="p-2 border border-gray-300 rounded mb-2 w-full"
-              />
-              <button onClick={handleAddNewLanguage} className="px-4 py-2 bg-purple-500 text-white rounded">
-                Add Language
-              </button>
+              <div className="flex">
+                <input
+                  type="text"
+                  placeholder="New Language"
+                  value={newLanguage}
+                  onChange={(e) => setNewLanguage(e.target.value)}
+                  className="p-2 border border-gray-300 rounded mr-2 flex-1"
+                />
+                <button onClick={handleAddNewLanguage} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-500 transition-colors">
+                  Add Language
+                </button>
+              </div>
             </div>
           </>
         )}
