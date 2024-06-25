@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './index.css'; // Ensure this import is present
-import CreateProject from './components/CreateProject';
-import ProjectList from './components/ProjectList';
-import TranslationEditor from './components/TranslationEditor';
-import AddLanguage from './components/AddLanguage';
+import Sidebar from './components/Sidebar';
+import NewProjectDialog from './components/NewProjectDialog';
+import TranslationEditorDialog from './components/TranslationEditorDialog';
 import supabase from './supabaseClient'; // Import the Supabase client
 
 const App = () => {
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [translations, setTranslations] = useState({});
-  const [newProjectName, setNewProjectName] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [newLanguage, setNewLanguage] = useState('');
   const [languages, setLanguages] = useState([]);
   const [mainLanguage, setMainLanguage] = useState('');
   const [jsonError, setJsonError] = useState(null);
+  const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
+  const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchProjects();
@@ -133,7 +133,7 @@ const App = () => {
     }
   };
 
-  const handleNewProjectSubmit = async () => {
+  const handleNewProjectSubmit = async (newProjectName, mainLanguage) => {
     try {
       const { data, error } = await supabase
         .from('projects')
@@ -155,8 +155,6 @@ const App = () => {
       }
 
       setProjects([...projects, data]);
-      setNewProjectName('');
-      setMainLanguage('');
     } catch (error) {
       console.error('Unexpected error creating project:', error);
     }
@@ -202,34 +200,80 @@ const App = () => {
     }
   };
 
+  const openNewProjectDialog = () => setIsProjectDialogOpen(true);
+  const closeNewProjectDialog = () => setIsProjectDialogOpen(false);
+
+  const openTranslationDialog = () => setIsTranslationDialogOpen(true);
+  const closeTranslationDialog = () => setIsTranslationDialogOpen(false);
+
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">LangSync</h1>
-      <CreateProject
-        newProjectName={newProjectName}
-        setNewProjectName={setNewProjectName}
-        mainLanguage={mainLanguage}
-        setMainLanguage={setMainLanguage}
+    <div className="flex h-screen">
+      <Sidebar projects={projects} handleProjectSelect={handleProjectSelect} openNewProjectDialog={openNewProjectDialog} />
+      <div className="flex-1 p-4">
+        <h1 className="text-2xl font-bold mb-4">LangSync</h1>
+        {selectedProject && (
+          <>
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold mb-2">Translations for {selectedProject.name}</h2>
+              <button onClick={openTranslationDialog} className="mb-2 px-4 py-2 bg-green-500 text-white rounded">
+                Add Translation
+              </button>
+              <table className="min-w-full border-collapse border border-gray-200">
+                <thead>
+                  <tr>
+                    <th className="border border-gray-200 px-4 py-2">Key</th>
+                    <th className="border border-gray-200 px-4 py-2">Main Language</th>
+                    {languages.filter(lang => lang !== mainLanguage).map(lang => (
+                      <th key={lang} className="border border-gray-200 px-4 py-2">{lang}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(translations).map(([key, { main_value, translations }]) => (
+                    <tr key={key}>
+                      <td className="border border-gray-200 px-4 py-2">{key}</td>
+                      <td className="border border-gray-200 px-4 py-2">{main_value}</td>
+                      {languages.filter(lang => lang !== mainLanguage).map(lang => (
+                        <td key={lang} className="border border-gray-200 px-4 py-2">{translations[lang]}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4">
+              <h3 className="text-lg font-semibold mb-2">Add New Language</h3>
+              <input
+                type="text"
+                placeholder="New Language"
+                value={newLanguage}
+                onChange={(e) => setNewLanguage(e.target.value)}
+                className="p-2 border border-gray-300 rounded mb-2 w-full"
+              />
+              <button onClick={handleAddNewLanguage} className="px-4 py-2 bg-purple-500 text-white rounded">
+                Add Language
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      <NewProjectDialog
+        isOpen={isProjectDialogOpen}
+        closeModal={closeNewProjectDialog}
         handleNewProjectSubmit={handleNewProjectSubmit}
       />
-      <ProjectList projects={projects} handleProjectSelect={handleProjectSelect} />
-      {selectedProject && (
-        <>
-          <TranslationEditor
-            translations={translations}
-            selectedLanguage={selectedLanguage}
-            mainLanguage={mainLanguage}
-            handleJsonChange={handleJsonChange}
-            jsonError={jsonError}
-            handleTranslationSubmit={handleTranslationSubmit}
-          />
-          <AddLanguage
-            newLanguage={newLanguage}
-            setNewLanguage={setNewLanguage}
-            handleAddNewLanguage={handleAddNewLanguage}
-          />
-        </>
-      )}
+
+      <TranslationEditorDialog
+        isOpen={isTranslationDialogOpen}
+        closeModal={closeTranslationDialog}
+        handleTranslationSubmit={handleTranslationSubmit}
+        translations={translations}
+        selectedLanguage={selectedLanguage}
+        mainLanguage={mainLanguage}
+        handleJsonChange={handleJsonChange}
+        jsonError={jsonError}
+      />
     </div>
   );
 };
