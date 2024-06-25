@@ -4,6 +4,7 @@ import './index.css'; // Ensure this import is present
 import Sidebar from './components/Sidebar';
 import NewProjectDialog from './components/NewProjectDialog';
 import TranslationEditorDialog from './components/TranslationEditorDialog';
+import LanguageJsonDialog from './components/LanguageJsonDialog';
 import supabase from './supabaseClient'; // Import the Supabase client
 
 const App = () => {
@@ -17,6 +18,9 @@ const App = () => {
   const [jsonError, setJsonError] = useState(null);
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
   const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
+  const [isLanguageJsonDialogOpen, setIsLanguageJsonDialogOpen] = useState(false);
+  const [languageJsonData, setLanguageJsonData] = useState({});
+  const [jsonDialogLanguage, setJsonDialogLanguage] = useState('');
 
   useEffect(() => {
     fetchProjects();
@@ -206,6 +210,18 @@ const App = () => {
   const openTranslationDialog = () => setIsTranslationDialogOpen(true);
   const closeTranslationDialog = () => setIsTranslationDialogOpen(false);
 
+  const openLanguageJsonDialog = (language) => {
+    const jsonData = Object.fromEntries(
+      Object.entries(translations).map(([key, { main_value, translations }]) => [
+        key, language === mainLanguage ? main_value : translations[language]
+      ])
+    );
+    setLanguageJsonData(jsonData);
+    setJsonDialogLanguage(language);
+    setIsLanguageJsonDialogOpen(true);
+  };
+  const closeLanguageJsonDialog = () => setIsLanguageJsonDialogOpen(false);
+
   return (
     <div className="flex h-screen">
       <Sidebar projects={projects} handleProjectSelect={handleProjectSelect} openNewProjectDialog={openNewProjectDialog} />
@@ -222,9 +238,17 @@ const App = () => {
                 <thead>
                   <tr>
                     <th className="border border-gray-200 px-4 py-2">Key</th>
-                    <th className="border border-gray-200 px-4 py-2">Main Language</th>
+                    <th className="border border-gray-200 px-4 py-2">{mainLanguage}</th>
                     {languages.filter(lang => lang !== mainLanguage).map(lang => (
-                      <th key={lang} className="border border-gray-200 px-4 py-2">{lang}</th>
+                      <th key={lang} className="border border-gray-200 px-4 py-2">
+                        {lang}
+                        <button
+                          onClick={() => openLanguageJsonDialog(lang)}
+                          className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-sm"
+                        >
+                          View JSON
+                        </button>
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -273,6 +297,13 @@ const App = () => {
         mainLanguage={mainLanguage}
         handleJsonChange={handleJsonChange}
         jsonError={jsonError}
+      />
+
+      <LanguageJsonDialog
+        isOpen={isLanguageJsonDialogOpen}
+        closeModal={closeLanguageJsonDialog}
+        language={jsonDialogLanguage}
+        jsonData={languageJsonData}
       />
     </div>
   );
