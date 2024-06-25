@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
 import './index.css'; // Ensure this import is present
-
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_ANON_KEY
-);
+import CreateProject from './components/CreateProject';
+import ProjectList from './components/ProjectList';
+import TranslationEditor from './components/TranslationEditor';
+import AddLanguage from './components/AddLanguage';
+import supabase from './supabaseClient'; // Import the Supabase client
 
 const App = () => {
   const [projects, setProjects] = useState([]);
@@ -206,78 +205,30 @@ const App = () => {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">LangSync</h1>
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold mb-2">Create New Project</h2>
-        <input
-          type="text"
-          placeholder="Project Name"
-          value={newProjectName}
-          onChange={(e) => setNewProjectName(e.target.value)}
-          className="p-2 border border-gray-300 rounded mb-2 w-full"
-        />
-        <input
-          type="text"
-          placeholder="Main Language"
-          value={mainLanguage}
-          onChange={(e) => setMainLanguage(e.target.value)}
-          className="p-2 border border-gray-300 rounded mb-2 w-full"
-        />
-        <button onClick={handleNewProjectSubmit} className="px-4 py-2 bg-blue-500 text-white rounded">
-          Create Project
-        </button>
-      </div>
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold mb-2">Projects</h2>
-        <ul className="space-y-2">
-          {projects.map(project => (
-            <li key={project.id} onClick={() => handleProjectSelect(project)} className="p-2 border border-gray-300 rounded cursor-pointer hover:bg-gray-100">
-              {project.name}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <CreateProject
+        newProjectName={newProjectName}
+        setNewProjectName={setNewProjectName}
+        mainLanguage={mainLanguage}
+        setMainLanguage={setMainLanguage}
+        handleNewProjectSubmit={handleNewProjectSubmit}
+      />
+      <ProjectList projects={projects} handleProjectSelect={handleProjectSelect} />
       {selectedProject && (
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold mb-2">Translations for {selectedProject.name}</h2>
-          <div className="mb-2">
-            <label className="block mb-1">
-              Select Language:
-              <select value={selectedLanguage} onChange={(e) => setSelectedLanguage(e.target.value)} className="p-2 border border-gray-300 rounded w-full">
-                <option value={mainLanguage}>{mainLanguage}</option>
-                {languages.filter(lang => lang !== mainLanguage).map(language => (
-                  <option key={language} value={language}>{language}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <textarea
-            value={JSON.stringify(
-              Object.fromEntries(
-                Object.entries(translations).map(([key, { main_value, translations }]) => [
-                  key, selectedLanguage === mainLanguage ? main_value : translations[selectedLanguage]
-                ])
-              ), null, 2)}
-            onChange={handleJsonChange}
-            className="p-2 border border-gray-300 rounded w-full h-64 mb-2"
+        <>
+          <TranslationEditor
+            translations={translations}
+            selectedLanguage={selectedLanguage}
+            mainLanguage={mainLanguage}
+            handleJsonChange={handleJsonChange}
+            jsonError={jsonError}
+            handleTranslationSubmit={handleTranslationSubmit}
           />
-          {jsonError && <p className="text-red-500">{jsonError}</p>}
-          <button onClick={handleTranslationSubmit} className="px-4 py-2 bg-green-500 text-white rounded">
-            Save Translations
-          </button>
-          <div className="mt-4">
-            <h3 className="text-lg font-semibold mb-2">Add New Language</h3>
-            <input
-              type="text"
-              placeholder="New Language"
-              value={newLanguage}
-              onChange={(e) => setNewLanguage(e.target.value)}
-              className="p-2 border border-gray-300 rounded mb-2 w-full"
-            />
-            <button onClick={handleAddNewLanguage} className="px-4 py-2 bg-purple-500 text-white rounded">
-              Add Language
-            </button>
-          </div>
-        </div>
+          <AddLanguage
+            newLanguage={newLanguage}
+            setNewLanguage={setNewLanguage}
+            handleAddNewLanguage={handleAddNewLanguage}
+          />
+        </>
       )}
     </div>
   );
