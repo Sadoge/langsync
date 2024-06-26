@@ -424,12 +424,12 @@ const App = () => {
                   <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} /> {/* Add search input */}
                   <div className="overflow-x-auto bg-white shadow-md rounded-lg">
                     <table className="min-w-full bg-white border border-gray-200">
-                      <thead className="bg-gray-50">
+                      <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">Key</th>
-                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">{languages.find(l => l.code === mainLanguage)?.name}</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700 w-1/4">Key</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700 w-1/4">{languages.find(l => l.code === mainLanguage)?.name}</th>
                           {projectLanguages.filter(lang => lang.language_code !== mainLanguage).map(lang => (
-                            <th key={lang.language_code} className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">
+                            <th key={lang.language_code} className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700 w-1/4">
                               {languages.find(l => l.code === lang.language_code)?.name}
                               <button
                                 onClick={() => openLanguageJsonDialog(lang.language_code)}
