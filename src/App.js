@@ -33,18 +33,19 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    // Filter translations based on search term
-    if (searchTerm) {
-      const filtered = Object.fromEntries(
-        Object.entries(translations).filter(([key, { main_value }]) =>
-          key.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          main_value.toLowerCase().includes(searchTerm.toLowerCase())
-        )
+    // Filter translations based on search term and sort keys alphabetically
+    const filterAndSortTranslations = (translations) => {
+      return Object.fromEntries(
+        Object.entries(translations)
+          .filter(([key, { main_value }]) =>
+            key.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            main_value.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+          .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
       );
-      setFilteredTranslations(filtered);
-    } else {
-      setFilteredTranslations(translations);
-    }
+    };
+
+    setFilteredTranslations(filterAndSortTranslations(translations));
   }, [searchTerm, translations]);
 
   const fetchProjects = async () => {
@@ -241,9 +242,11 @@ const App = () => {
 
   const openLanguageJsonDialog = (language) => {
     const jsonData = Object.fromEntries(
-      Object.entries(translations).map(([key, { main_value, translations }]) => [
-        key, language === mainLanguage ? main_value : translations[language]
-      ])
+      Object.entries(translations)
+        .map(([key, { main_value, translations }]) => [
+          key, language === mainLanguage ? main_value : translations[language]
+        ])
+        .sort(([keyA], [keyB]) => keyA.localeCompare(keyB)) // Sort keys alphabetically
     );
     setLanguageJsonData(jsonData);
     setJsonDialogLanguage(language);
