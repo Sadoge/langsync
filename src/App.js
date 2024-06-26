@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import './index.css';
 import Sidebar from './components/Sidebar';
+import TranslationTable from './components/TranslationTable';
 import NewProjectDialog from './components/NewProjectDialog';
 import TranslationEditorDialog from './components/TranslationEditorDialog';
 import LanguageJsonDialog from './components/LanguageJsonDialog';
@@ -10,22 +10,24 @@ import SearchInput from './components/SearchInput';
 import AddLanguageDialog from './components/AddLanguageDialog';
 import UpdateMainLanguageDialog from './components/UpdateMainLanguageDialog';
 import Auth from './components/Auth';
-import supabase from './supabaseClient';
-import { languages } from './languages';
+import { useAuth } from './context/AuthContext';
+import { createProject } from './services/projectService';
+import { addTranslations } from './services/translationService';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import supabase from './supabaseClient';
+import useFetchProjects from './hooks/useFetchProjects';
 
 const App = () => {
-  const [projects, setProjects] = useState([]);
+  const { session, user, signOut } = useAuth();
+  const { projects, fetchProjects } = useFetchProjects(user?.id);
   const [selectedProject, setSelectedProject] = useState(null);
   const [translations, setTranslations] = useState({});
-  const [filteredTranslations, setFilteredTranslations] = useState({});
   const [selectedLanguage, setSelectedLanguage] = useState('');
-  const [newLanguage, setNewLanguage] = useState('');
   const [projectLanguages, setProjectLanguages] = useState([]);
   const [mainLanguage, setMainLanguage] = useState('');
-  const [jsonError, setJsonError] = useState(null);
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
+  const [filteredTranslations, setFilteredTranslations] = useState({});
   const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
   const [isLanguageJsonDialogOpen, setIsLanguageJsonDialogOpen] = useState(false);
   const [isAddLanguageDialogOpen, setIsAddLanguageDialogOpen] = useState(false);
@@ -35,81 +37,12 @@ const App = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [session, setSession] = useState(null);
-  const [user, setUser] = useState(null);
+  const [jsonError, setJsonError] = useState(null); // Define jsonError state
 
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session) {
-        fetchProjects(session.user.id);
-      } else {
-        setProjects([]);
-        setSelectedProject(null);
-      }
-    };
-
-    supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session) {
-        fetchProjects(session.user.id);
-      } else {
-        setProjects([]);
-        setSelectedProject(null);
-      }
-    });
-
-    getSession();
-  }, []);
-
-  const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error('Error signing out: ' + error.message);
-      console.error('Error signing out:', error);
-    } else {
-      setSession(null);
-      setUser(null);
-      setProjects([]);
-      setSelectedProject(null);
-      toast.success('Signed out successfully');
-    }
-  };
-
-  useEffect(() => {
-    const filterAndSortTranslations = (translations) => {
-      return Object.fromEntries(
-        Object.entries(translations)
-          .filter(([key, { main_value }]) =>
-            key.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            main_value.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-          .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-      );
-    };
-
-    setFilteredTranslations(filterAndSortTranslations(translations));
-  }, [searchTerm, translations]);
-
-  const fetchProjects = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('user_id', userId);
-      if (error) {
-        toast.error('Error fetching projects: ' + error.message);
-        console.error('Error fetching projects:', error);
-        return;
-      }
-      setProjects(data);
-    } catch (error) {
-      toast.error('Unexpected error fetching projects');
-      console.error('Unexpected error fetching projects:', error);
-    }
+  const handleProjectSelect = async (project) => {
+    setSelectedProject(project);
+    await fetchTranslations(project.id);
+    await fetchProjectLanguages(project.id);
   };
 
   const fetchTranslations = async (projectId) => {
@@ -120,15 +53,18 @@ const App = () => {
         console.error('Error fetching translations:', translationsError);
         return;
       }
-      setTranslations(translationsData.reduce((acc, { key, main_value, translations }) => {
+      const translations = translationsData.reduce((acc, { key, main_value, translations }) => {
         acc[key] = { main_value, translations };
         return acc;
-      }, {}));
+      }, {});
+      setTranslations(translations);
+      setFilteredTranslations(translations); // Set filteredTranslations
     } catch (error) {
       toast.error('Unexpected error fetching translations');
       console.error('Unexpected error fetching translations:', error);
     }
   };
+  
 
   const fetchProjectLanguages = async (projectId) => {
     try {
@@ -148,40 +84,11 @@ const App = () => {
     }
   };
 
-  const handleProjectSelect = async (project) => {
-    try {
-      setSelectedProject(project);
-      await fetchTranslations(project.id);
-      await fetchProjectLanguages(project.id);
-    } catch (error) {
-      toast.error('Unexpected error fetching project details');
-      console.error('Unexpected error fetching project details:', error);
-    }
-  };
-
   const handleTranslationSubmit = async (newTranslations) => {
     setIsProcessing(true);
-    const translationEntries = Object.entries(newTranslations);
-    const totalEntries = translationEntries.length;
-
     try {
-      for (let i = 0; i < totalEntries; i++) {
-        const [key, main_value] = translationEntries[i];
-        const updatedTranslations = await translate(main_value, {});
-        const { error } = await supabase
-          .from('translations')
-          .upsert([{ project_id: selectedProject.id, key, main_value, translations: updatedTranslations }], {
-            onConflict: ['project_id', 'key']
-          });
-        if (error) {
-          toast.error('Error adding translations: ' + error.message);
-          console.error('Error adding translations:', error);
-        }
-
-        setProgress(Math.round(((i + 1) / totalEntries) * 100));
-      }
-
-      await fetchTranslations(selectedProject.id);
+      const progressUpdates = await addTranslations(selectedProject.id, newTranslations, projectLanguages, mainLanguage, process.env.REACT_APP_OPENAI_API_KEY);
+      progressUpdates.forEach(progress => setProgress(progress));
       toast.success('Translations added successfully');
     } catch (error) {
       toast.error('Unexpected error adding translations');
@@ -191,95 +98,11 @@ const App = () => {
     }
   };
 
-  const translate = async (text, existingTranslations) => {
-    try {
-      const translations = { ...existingTranslations };
-
-      for (const { language_code } of projectLanguages) {
-        if (language_code !== mainLanguage && !translations[language_code]) {
-          const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-            model: 'gpt-3.5-turbo',
-            messages: [
-              {
-                role: 'system',
-                content: `You are a translation assistant. Translate the following text to ${language_code}.`
-              },
-              {
-                role: 'user',
-                content: text
-              }
-            ]
-          }, {
-            headers: {
-              'Authorization': `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
-              'Content-Type': 'application/json'
-            }
-          });
-
-          if (response.data.choices && response.data.choices.length > 0) {
-            translations[language_code] = response.data.choices[0].message.content.trim();
-          } else {
-            console.error(`No translation found for language: ${language_code}`);
-          }
-        }
-      }
-
-      return translations;
-    } catch (error) {
-      console.error('Error translating text:', error);
-      return existingTranslations;
-    }
-  };
-
   const handleNewProjectSubmit = async (newProjectName, mainLanguageCode) => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('No user logged in');
-        console.error('No user logged in');
-        return;
-      }
-
-      // Step 1: Insert the new project
-      const { data: insertData, error: insertError } = await supabase
-        .from('projects')
-        .insert([{ name: newProjectName, user_id: user.id }])
-        .select(); // Use .select() to return the inserted data
-
-      console.log('Insert response:', insertData, insertError); // Log the insert response
-
-      if (insertError) {
-        toast.error('Error creating project: ' + insertError.message);
-        console.error('Error creating project:', insertError);
-        return;
-      }
-
-      if (!insertData || insertData.length === 0) {
-        toast.error('No data returned from project creation');
-        console.error('No data returned from project creation');
-        return;
-      }
-
-      const projectData = insertData[0];
-
-      // Step 2: Insert the main language
-      const { error: langError } = await supabase
-        .from('project_languages')
-        .insert([{ project_id: projectData.id, language_code: mainLanguageCode, is_main: true }]);
-
-      console.log('Main language insertion response:', langError); // Log the response for debugging
-
-      if (langError) {
-        toast.error('Error inserting main language: ' + langError.message);
-        console.error('Error inserting main language:', langError);
-        return;
-      }
-
-      // Update the projects state with the new project
-      setProjects([...projects, projectData]);
+      await createProject(newProjectName, user.id, mainLanguageCode);
       toast.success('Project created successfully');
+      fetchProjects(user.id); // Fetch projects again to refresh the list
     } catch (error) {
       toast.error('Unexpected error creating project');
       console.error('Unexpected error creating project:', error);
@@ -403,7 +226,7 @@ const App = () => {
             handleProjectSelect={handleProjectSelect}
             openNewProjectDialog={openNewProjectDialog}
             user={user}
-            onSignOut={handleSignOut}
+            onSignOut={signOut}
           />
           <div className="flex-1 p-6 ml-64 overflow-y-auto min-h-screen">
             {isProcessing && <ProgressIndicator progress={progress} />} {/* Show progress indicator */}
@@ -422,38 +245,12 @@ const App = () => {
                     </div>
                   </div>
                   <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} /> {/* Add search input */}
-                  <div className="overflow-x-auto bg-white shadow-md rounded-lg">
-                    <table className="min-w-full bg-white border border-gray-200">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700 w-1/4">Key</th>
-                          <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700 w-1/4">{languages.find(l => l.code === mainLanguage)?.name}</th>
-                          {projectLanguages.filter(lang => lang.language_code !== mainLanguage).map(lang => (
-                            <th key={lang.language_code} className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700 w-1/4">
-                              {languages.find(l => l.code === lang.language_code)?.name}
-                              <button
-                                onClick={() => openLanguageJsonDialog(lang.language_code)}
-                                className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-400 transition-colors"
-                              >
-                                View JSON
-                              </button>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white">
-                        {Object.entries(filteredTranslations).map(([key, { main_value, translations }]) => (
-                          <tr key={key}>
-                            <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{key}</td>
-                            <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{main_value}</td>
-                            {projectLanguages.filter(lang => lang.language_code !== mainLanguage).map(lang => (
-                              <td key={lang.language_code} className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{translations[lang.language_code]}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <TranslationTable
+                    filteredTranslations={filteredTranslations}
+                    projectLanguages={projectLanguages}
+                    mainLanguage={mainLanguage}
+                    openLanguageJsonDialog={openLanguageJsonDialog}
+                  />
                 </div>
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold mb-2">Add New Language</h3>
