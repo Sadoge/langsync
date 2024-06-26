@@ -5,23 +5,8 @@ import { faSignOutAlt, faUser, faPlusCircle } from '@fortawesome/free-solid-svg-
 const Sidebar = ({ projects, handleProjectSelect, openNewProjectDialog, user, onSignOut }) => {
   return (
     <div className="w-64 h-full bg-gray-800 text-white fixed flex flex-col justify-between">
-      <div className="p-4">
+      <div className="p-4 flex-grow">
         <h2 className="text-xl font-semibold mb-4">LangSync</h2>
-        <div className="mb-6">
-          <div className="flex items-center mb-2">
-            <FontAwesomeIcon icon={faUser} className="mr-2 text-gray-400" />
-            <div>
-              <div className="text-sm font-semibold">{user.email}</div>
-            </div>
-          </div>
-          <button
-            onClick={onSignOut}
-            className="w-full flex items-center justify-center mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 transition-colors"
-          >
-            <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" />
-            Sign Out
-          </button>
-        </div>
         <h3 className="text-lg font-semibold mb-2">Projects</h3>
         <button
           onClick={openNewProjectDialog}
@@ -42,6 +27,21 @@ const Sidebar = ({ projects, handleProjectSelect, openNewProjectDialog, user, on
             </li>
           ))}
         </ul>
+      </div>
+      <div className="p-4 border-t border-gray-700">
+        <div className="flex items-center mb-2">
+          <FontAwesomeIcon icon={faUser} className="mr-2 text-gray-400" />
+          <div>
+            <div className="text-sm font-semibold">{user.email}</div>
+          </div>
+        </div>
+        <button
+          onClick={onSignOut}
+          className="w-full flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 transition-colors"
+        >
+          <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" />
+          Sign Out
+        </button>
       </div>
     </div>
   );

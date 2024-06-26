@@ -12,6 +12,8 @@ import UpdateMainLanguageDialog from './components/UpdateMainLanguageDialog';
 import Auth from './components/Auth';
 import supabase from './supabaseClient';
 import { languages } from './languages';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const App = () => {
   const [projects, setProjects] = useState([]);
@@ -66,12 +68,14 @@ const App = () => {
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
+      toast.error('Error signing out: ' + error.message);
       console.error('Error signing out:', error);
     } else {
       setSession(null);
       setUser(null);
       setProjects([]);
       setSelectedProject(null);
+      toast.success('Signed out successfully');
     }
   };
 
@@ -97,11 +101,13 @@ const App = () => {
         .select('*')
         .eq('user_id', userId);
       if (error) {
+        toast.error('Error fetching projects: ' + error.message);
         console.error('Error fetching projects:', error);
         return;
       }
       setProjects(data);
     } catch (error) {
+      toast.error('Unexpected error fetching projects');
       console.error('Unexpected error fetching projects:', error);
     }
   };
@@ -110,6 +116,7 @@ const App = () => {
     try {
       const { data: translationsData, error: translationsError } = await supabase.from('translations').select('*').eq('project_id', projectId);
       if (translationsError) {
+        toast.error('Error fetching translations: ' + translationsError.message);
         console.error('Error fetching translations:', translationsError);
         return;
       }
@@ -118,6 +125,7 @@ const App = () => {
         return acc;
       }, {}));
     } catch (error) {
+      toast.error('Unexpected error fetching translations');
       console.error('Unexpected error fetching translations:', error);
     }
   };
@@ -126,6 +134,7 @@ const App = () => {
     try {
       const { data: projectLanguagesData, error: projectLanguagesError } = await supabase.from('project_languages').select('*').eq('project_id', projectId);
       if (projectLanguagesError) {
+        toast.error('Error fetching project languages: ' + projectLanguagesError.message);
         console.error('Error fetching project languages:', projectLanguagesError);
         return;
       }
@@ -134,6 +143,7 @@ const App = () => {
       setMainLanguage(mainLang.language_code);
       setSelectedLanguage(mainLang.language_code);
     } catch (error) {
+      toast.error('Unexpected error fetching project languages');
       console.error('Unexpected error fetching project languages:', error);
     }
   };
@@ -144,6 +154,7 @@ const App = () => {
       await fetchTranslations(project.id);
       await fetchProjectLanguages(project.id);
     } catch (error) {
+      toast.error('Unexpected error fetching project details');
       console.error('Unexpected error fetching project details:', error);
     }
   };
@@ -163,6 +174,7 @@ const App = () => {
             onConflict: ['project_id', 'key']
           });
         if (error) {
+          toast.error('Error adding translations: ' + error.message);
           console.error('Error adding translations:', error);
         }
 
@@ -170,7 +182,9 @@ const App = () => {
       }
 
       await fetchTranslations(selectedProject.id);
+      toast.success('Translations added successfully');
     } catch (error) {
+      toast.error('Unexpected error adding translations');
       console.error('Unexpected error adding translations:', error);
     } finally {
       setIsProcessing(false);
@@ -223,6 +237,7 @@ const App = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
+        toast.error('No user logged in');
         console.error('No user logged in');
         return;
       }
@@ -236,11 +251,13 @@ const App = () => {
       console.log('Insert response:', insertData, insertError); // Log the insert response
 
       if (insertError) {
+        toast.error('Error creating project: ' + insertError.message);
         console.error('Error creating project:', insertError);
         return;
       }
 
       if (!insertData || insertData.length === 0) {
+        toast.error('No data returned from project creation');
         console.error('No data returned from project creation');
         return;
       }
@@ -255,13 +272,16 @@ const App = () => {
       console.log('Main language insertion response:', langError); // Log the response for debugging
 
       if (langError) {
+        toast.error('Error inserting main language: ' + langError.message);
         console.error('Error inserting main language:', langError);
         return;
       }
 
       // Update the projects state with the new project
       setProjects([...projects, projectData]);
+      toast.success('Project created successfully');
     } catch (error) {
+      toast.error('Unexpected error creating project');
       console.error('Unexpected error creating project:', error);
     }
   };
@@ -273,12 +293,15 @@ const App = () => {
         .insert([{ project_id: selectedProject.id, language_code: languageCode, is_main: false }]);
       
       if (error) {
+        toast.error('Error adding new language: ' + error.message);
         console.error('Error adding new language:', error);
         return;
       }
 
       setProjectLanguages([...projectLanguages, { language_code: languageCode, is_main: false }]);
+      toast.success('Language added successfully');
     } catch (error) {
+      toast.error('Unexpected error adding new language');
       console.error('Unexpected error adding new language:', error);
     }
   };
@@ -292,6 +315,7 @@ const App = () => {
         .eq('is_main', true);
 
       if (error) {
+        toast.error('Error updating old main language: ' + error.message);
         console.error('Error updating old main language:', error);
         return;
       }
@@ -303,6 +327,7 @@ const App = () => {
         .eq('language_code', newMainLanguageCode);
 
       if (newMainLangError) {
+        toast.error('Error setting new main language: ' + newMainLangError.message);
         console.error('Error setting new main language:', newMainLangError);
         return;
       }
@@ -310,7 +335,9 @@ const App = () => {
       setMainLanguage(newMainLanguageCode);
       setSelectedLanguage(newMainLanguageCode);
       await fetchProjectLanguages(selectedProject.id);
+      toast.success('Main language updated successfully');
     } catch (error) {
+      toast.error('Unexpected error updating main language');
       console.error('Unexpected error updating main language:', error);
     }
   };
@@ -334,6 +361,7 @@ const App = () => {
       );
     } catch (error) {
       setJsonError('Invalid JSON format');
+      toast.error('Invalid JSON format');
     }
   };
 
@@ -364,7 +392,8 @@ const App = () => {
   const closeUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(false);
 
   return (
-    <div className="flex h-full bg-gray-100">
+    <div className="flex h-screen bg-gray-100">
+      <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
       {!session ? (
         <Auth />
       ) : (

@@ -12,7 +12,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-gray-100">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md bg-white shadow-md rounded-lg p-8">
         <h2 className="text-2xl font-semibold text-center mb-4">Sign In</h2>
         <form onSubmit={handleAuth} className="space-y-4">
