@@ -5,12 +5,15 @@ import Sidebar from './components/Sidebar';
 import NewProjectDialog from './components/NewProjectDialog';
 import TranslationEditorDialog from './components/TranslationEditorDialog';
 import LanguageJsonDialog from './components/LanguageJsonDialog';
+import ProgressIndicator from './components/ProgressIndicator'; // Import the ProgressIndicator component
+import SearchInput from './components/SearchInput'; // Import the SearchInput component
 import supabase from './supabaseClient'; // Import the Supabase client
 
 const App = () => {
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [translations, setTranslations] = useState({});
+  const [filteredTranslations, setFilteredTranslations] = useState({}); // State for filtered translations
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [newLanguage, setNewLanguage] = useState('');
   const [languages, setLanguages] = useState([]);
@@ -21,10 +24,28 @@ const App = () => {
   const [isLanguageJsonDialogOpen, setIsLanguageJsonDialogOpen] = useState(false);
   const [languageJsonData, setLanguageJsonData] = useState({});
   const [jsonDialogLanguage, setJsonDialogLanguage] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false); // State for processing status
+  const [progress, setProgress] = useState(0); // State for progress
+  const [searchTerm, setSearchTerm] = useState(''); // State for search term
 
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  useEffect(() => {
+    // Filter translations based on search term
+    if (searchTerm) {
+      const filtered = Object.fromEntries(
+        Object.entries(translations).filter(([key, { main_value }]) =>
+          key.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          main_value.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      );
+      setFilteredTranslations(filtered);
+    } else {
+      setFilteredTranslations(translations);
+    }
+  }, [searchTerm, translations]);
 
   const fetchProjects = async () => {
     try {
@@ -76,10 +97,13 @@ const App = () => {
   };
 
   const handleTranslationSubmit = async (newTranslations) => {
+    setIsProcessing(true); // Set processing status to true
+    const translationEntries = Object.entries(newTranslations);
+    const totalEntries = translationEntries.length;
+    
     try {
-      const translationEntries = Object.entries(newTranslations);
-
-      for (const [key, main_value] of translationEntries) {
+      for (let i = 0; i < totalEntries; i++) {
+        const [key, main_value] = translationEntries[i];
         const updatedTranslations = await translate(main_value, {});
         const { error } = await supabase
           .from('translations')
@@ -89,11 +113,16 @@ const App = () => {
         if (error) {
           console.error('Error adding translations:', error);
         }
+
+        // Update progress
+        setProgress(Math.round(((i + 1) / totalEntries) * 100));
       }
 
       await fetchTranslations(selectedProject.id);
     } catch (error) {
       console.error('Unexpected error adding translations:', error);
+    } finally {
+      setIsProcessing(false); // Set processing status to false
     }
   };
 
@@ -226,6 +255,7 @@ const App = () => {
     <div className="flex h-full bg-gray-100">
       <Sidebar projects={projects} handleProjectSelect={handleProjectSelect} openNewProjectDialog={openNewProjectDialog} />
       <div className="flex-1 p-6 ml-64 overflow-y-auto min-h-screen">
+        {isProcessing && <ProgressIndicator progress={progress} />} {/* Show progress indicator */}
         {selectedProject && (
           <>
             <div className="mb-6">
@@ -235,6 +265,7 @@ const App = () => {
                   Add Translation
                 </button>
               </div>
+              <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} /> {/* Add search input */}
               <div className="overflow-x-auto bg-white shadow-md rounded-lg">
                 <table className="min-w-full bg-white border border-gray-200">
                   <thead className="bg-gray-50">
@@ -255,7 +286,7 @@ const App = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white">
-                    {Object.entries(translations).map(([key, { main_value, translations }]) => (
+                    {Object.entries(filteredTranslations).map(([key, { main_value, translations }]) => (
                       <tr key={key}>
                         <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{key}</td>
                         <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{main_value}</td>
