@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { languages } from '../languages';
 
-const NewProjectDialog = ({ isOpen, closeModal, handleNewProjectSubmit }) => {
-  const [projectName, setProjectName] = useState('');
-  const [mainLanguage, setMainLanguage] = useState('');
+const UpdateMainLanguageDialog = ({ isOpen, closeModal, handleUpdateMainLanguage, currentMainLanguage }) => {
+  const [selectedLanguage, setSelectedLanguage] = useState(currentMainLanguage);
+
+  useEffect(() => {
+    setSelectedLanguage(currentMainLanguage);
+  }, [currentMainLanguage]);
 
   const handleSubmit = () => {
-    handleNewProjectSubmit(projectName, mainLanguage);
-    setProjectName('');
-    setMainLanguage('');
+    handleUpdateMainLanguage(selectedLanguage);
     closeModal();
   };
 
@@ -42,19 +43,12 @@ const NewProjectDialog = ({ isOpen, closeModal, handleNewProjectSubmit }) => {
             >
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
                 <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
-                  Create New Project
+                  Update Main Language
                 </Dialog.Title>
                 <div className="mt-2">
-                  <input
-                    type="text"
-                    placeholder="Project Name"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    className="p-2 border border-gray-300 rounded w-full mb-4"
-                  />
                   <select
-                    value={mainLanguage}
-                    onChange={(e) => setMainLanguage(e.target.value)}
+                    value={selectedLanguage}
+                    onChange={(e) => setSelectedLanguage(e.target.value)}
                     className="p-2 border border-gray-300 rounded w-full"
                   >
                     <option value="" disabled>Select Main Language</option>
@@ -71,9 +65,9 @@ const NewProjectDialog = ({ isOpen, closeModal, handleNewProjectSubmit }) => {
                     type="button"
                     className="inline-flex justify-center rounded-md border border-transparent bg-green-500 px-4 py-2 text-sm font-medium text-white hover:bg-green-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
                     onClick={handleSubmit}
-                    disabled={!projectName || !mainLanguage}
+                    disabled={!selectedLanguage}
                   >
-                    Create
+                    Update
                   </button>
                   <button
                     type="button"
@@ -92,4 +86,4 @@ const NewProjectDialog = ({ isOpen, closeModal, handleNewProjectSubmit }) => {
   );
 };
 
-export default NewProjectDialog;
+export default UpdateMainLanguageDialog;

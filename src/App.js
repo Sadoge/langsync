@@ -7,7 +7,10 @@ import TranslationEditorDialog from './components/TranslationEditorDialog';
 import LanguageJsonDialog from './components/LanguageJsonDialog';
 import ProgressIndicator from './components/ProgressIndicator'; // Import the ProgressIndicator component
 import SearchInput from './components/SearchInput'; // Import the SearchInput component
+import AddLanguageDialog from './components/AddLanguageDialog'; // Import the AddLanguageDialog component
+import UpdateMainLanguageDialog from './components/UpdateMainLanguageDialog'; // Import the UpdateMainLanguageDialog component
 import supabase from './supabaseClient'; // Import the Supabase client
+import { languages } from './languages'; // Import the fixed list of languages
 
 const App = () => {
   const [projects, setProjects] = useState([]);
@@ -16,12 +19,14 @@ const App = () => {
   const [filteredTranslations, setFilteredTranslations] = useState({}); // State for filtered translations
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [newLanguage, setNewLanguage] = useState('');
-  const [languages, setLanguages] = useState([]);
+  const [projectLanguages, setProjectLanguages] = useState([]); // State for project languages
   const [mainLanguage, setMainLanguage] = useState('');
   const [jsonError, setJsonError] = useState(null);
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
   const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
   const [isLanguageJsonDialogOpen, setIsLanguageJsonDialogOpen] = useState(false);
+  const [isAddLanguageDialogOpen, setIsAddLanguageDialogOpen] = useState(false); // State for Add Language Dialog
+  const [isUpdateMainLanguageDialogOpen, setIsUpdateMainLanguageDialogOpen] = useState(false); // State for Update Main Language Dialog
   const [languageJsonData, setLanguageJsonData] = useState({});
   const [jsonDialogLanguage, setJsonDialogLanguage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false); // State for processing status
@@ -77,21 +82,27 @@ const App = () => {
     }
   };
 
+  const fetchProjectLanguages = async (projectId) => {
+    try {
+      const { data: projectLanguagesData, error: projectLanguagesError } = await supabase.from('project_languages').select('*').eq('project_id', projectId);
+      if (projectLanguagesError) {
+        console.error('Error fetching project languages:', projectLanguagesError);
+        return;
+      }
+      setProjectLanguages(projectLanguagesData);
+      const mainLang = projectLanguagesData.find(lang => lang.is_main);
+      setMainLanguage(mainLang.language_code);
+      setSelectedLanguage(mainLang.language_code);
+    } catch (error) {
+      console.error('Unexpected error fetching project languages:', error);
+    }
+  };
+
   const handleProjectSelect = async (project) => {
     try {
       setSelectedProject(project);
       await fetchTranslations(project.id);
-
-      const { data: languagesData, error: languagesError } = await supabase.from('languages').select('language, is_main').eq('project_id', project.id);
-      if (languagesError) {
-        console.error('Error fetching languages:', languagesError);
-        return;
-      }
-
-      const mainLang = languagesData.find(lang => lang.is_main);
-      setMainLanguage(mainLang.language);
-      setSelectedLanguage(mainLang.language);
-      setLanguages(languagesData.map(lang => lang.language));
+      await fetchProjectLanguages(project.id);
     } catch (error) {
       console.error('Unexpected error fetching project details:', error);
     }
@@ -101,7 +112,7 @@ const App = () => {
     setIsProcessing(true); // Set processing status to true
     const translationEntries = Object.entries(newTranslations);
     const totalEntries = translationEntries.length;
-    
+
     try {
       for (let i = 0; i < totalEntries; i++) {
         const [key, main_value] = translationEntries[i];
@@ -131,14 +142,14 @@ const App = () => {
     try {
       const translations = { ...existingTranslations };
 
-      for (const language of languages) {
-        if (language !== mainLanguage && !translations[language]) {
+      for (const { language_code } of projectLanguages) {
+        if (language_code !== mainLanguage && !translations[language_code]) {
           const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: 'gpt-3.5-turbo',
             messages: [
               {
                 role: 'system',
-                content: `You are a translation assistant. Translate the following text to ${language}.`
+                content: `You are a translation assistant. Translate the following text to ${language_code}.`
               },
               {
                 role: 'user',
@@ -153,9 +164,9 @@ const App = () => {
           });
 
           if (response.data.choices && response.data.choices.length > 0) {
-            translations[language] = response.data.choices[0].message.content.trim();
+            translations[language_code] = response.data.choices[0].message.content.trim();
           } else {
-            console.error(`No translation found for language: ${language}`);
+            console.error(`No translation found for language: ${language_code}`);
           }
         }
       }
@@ -167,70 +178,95 @@ const App = () => {
     }
   };
 
-  const handleNewProjectSubmit = async (newProjectName, mainLanguage) => {
+  const handleNewProjectSubmit = async (newProjectName, mainLanguageCode) => {
     try {
-      const { data, error } = await supabase
+      // Step 1: Insert the new project
+      const { data: insertData, error: insertError } = await supabase
         .from('projects')
         .insert([{ name: newProjectName }])
-        .single();
-      
-      if (error) {
-        console.error('Error creating project:', error);
+        .select(); // Use .select() to return the inserted data
+  
+      console.log('Insert response:', insertData, insertError); // Log the insert response
+  
+      if (insertError) {
+        console.error('Error creating project:', insertError);
         return;
       }
-
+  
+      if (!insertData || insertData.length === 0) {
+        console.error('No data returned from project creation');
+        return;
+      }
+  
+      const projectData = insertData[0];
+  
+      // Step 2: Insert the main language
       const { error: langError } = await supabase
-        .from('languages')
-        .insert([{ project_id: data.id, language: mainLanguage, is_main: true }]);
-      
+        .from('project_languages')
+        .insert([{ project_id: projectData.id, language_code: mainLanguageCode, is_main: true }]);
+  
+      console.log('Main language insertion response:', langError); // Log the response for debugging
+  
       if (langError) {
         console.error('Error inserting main language:', langError);
         return;
       }
-
-      setProjects([...projects, data]);
+  
+      // Update the projects state with the new project
+      setProjects([...projects, projectData]);
     } catch (error) {
       console.error('Unexpected error creating project:', error);
     }
-  };
-
-  const handleAddNewLanguage = async () => {
+  };  
+  
+  const handleAddNewLanguage = async (languageCode) => {
     try {
-      const { error } = await supabase
-        .from('languages')
-        .insert([{ project_id: selectedProject.id, language: newLanguage }]);
+      const { data, error } = await supabase
+        .from('project_languages')
+        .insert([{ project_id: selectedProject.id, language_code: languageCode, is_main: false }])
+        .single();
       
       if (error) {
         console.error('Error adding new language:', error);
         return;
       }
-
-      setLanguages([...languages, newLanguage]);
-      setNewLanguage('');
+  
+      console.log('New language added:', data); // Log the inserted language data
+      setProjectLanguages([...projectLanguages, { language_code: languageCode, is_main: false }]);
     } catch (error) {
       console.error('Unexpected error adding new language:', error);
     }
-  };
+  };  
 
-  const handleJsonChange = (e) => {
+  const handleUpdateMainLanguage = async (newMainLanguageCode) => {
     try {
-      const parsedJson = JSON.parse(e.target.value);
-      setJsonError(null);
-      setTranslations(
-        Object.fromEntries(
-          Object.entries(parsedJson).map(([key, value]) => [
-            key, {
-              main_value: selectedLanguage === mainLanguage ? value : translations[key]?.main_value,
-              translations: {
-                ...translations[key]?.translations,
-                [selectedLanguage]: selectedLanguage !== mainLanguage ? value : translations[key]?.translations[selectedLanguage]
-              }
-            }
-          ])
-        )
-      );
+      const { error } = await supabase
+        .from('project_languages')
+        .update({ is_main: false })
+        .eq('project_id', selectedProject.id)
+        .eq('is_main', true);
+
+      if (error) {
+        console.error('Error updating old main language:', error);
+        return;
+      }
+
+      const { error: newMainLangError } = await supabase
+        .from('project_languages')
+        .update({ is_main: true })
+        .eq('project_id', selectedProject.id)
+        .eq('language_code', newMainLanguageCode);
+
+      if (newMainLangError) {
+        console.error('Error setting new main language:', newMainLangError);
+        return;
+      }
+
+      setMainLanguage(newMainLanguageCode);
+      setSelectedLanguage(newMainLanguageCode);
+      await fetchProjectLanguages(selectedProject.id);
     } catch (error) {
-      setJsonError('Invalid JSON format');
+      console.error('Unexpected error updating main language:', error);
     }
   };
 
@@ -254,6 +290,12 @@ const App = () => {
   };
   const closeLanguageJsonDialog = () => setIsLanguageJsonDialogOpen(false);
 
+  const openAddLanguageDialog = () => setIsAddLanguageDialogOpen(true);
+  const closeAddLanguageDialog = () => setIsAddLanguageDialogOpen(false);
+
+  const openUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(true);
+  const closeUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(false);
+
   return (
     <div className="flex h-full bg-gray-100">
       <Sidebar projects={projects} handleProjectSelect={handleProjectSelect} openNewProjectDialog={openNewProjectDialog} />
@@ -264,9 +306,14 @@ const App = () => {
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-semibold">Translations for {selectedProject.name}</h2>
-                <button onClick={openTranslationDialog} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors">
-                  Add Translation
-                </button>
+                <div>
+                  <button onClick={openTranslationDialog} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors">
+                    Add Translation
+                  </button>
+                  <button onClick={openUpdateMainLanguageDialog} className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors">
+                    Update Main Language
+                  </button>
+                </div>
               </div>
               <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} /> {/* Add search input */}
               <div className="overflow-x-auto bg-white shadow-md rounded-lg">
@@ -274,12 +321,12 @@ const App = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">Key</th>
-                      <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">{mainLanguage}</th>
-                      {languages.filter(lang => lang !== mainLanguage).map(lang => (
-                        <th key={lang} className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">
-                          {lang}
+                      <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">{languages.find(l => l.code === mainLanguage)?.name}</th>
+                      {projectLanguages.filter(lang => lang.language_code !== mainLanguage).map(lang => (
+                        <th key={lang.language_code} className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">
+                          {languages.find(l => l.code === lang.language_code)?.name}
                           <button
-                            onClick={() => openLanguageJsonDialog(lang)}
+                            onClick={() => openLanguageJsonDialog(lang.language_code)}
                             className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-400 transition-colors"
                           >
                             View JSON
@@ -293,8 +340,8 @@ const App = () => {
                       <tr key={key}>
                         <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{key}</td>
                         <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{main_value}</td>
-                        {languages.filter(lang => lang !== mainLanguage).map(lang => (
-                          <td key={lang} className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{translations[lang]}</td>
+                        {projectLanguages.filter(lang => lang.language_code !== mainLanguage).map(lang => (
+                          <td key={lang.language_code} className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{translations[lang.language_code]}</td>
                         ))}
                       </tr>
                     ))}
@@ -305,14 +352,10 @@ const App = () => {
             <div className="mt-6">
               <h3 className="text-lg font-semibold mb-2">Add New Language</h3>
               <div className="flex">
-                <input
-                  type="text"
-                  placeholder="New Language"
-                  value={newLanguage}
-                  onChange={(e) => setNewLanguage(e.target.value)}
-                  className="p-2 border border-gray-300 rounded mr-2 flex-1"
-                />
-                <button onClick={handleAddNewLanguage} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-500 transition-colors">
+                <button
+                  onClick={openAddLanguageDialog}
+                  className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-500 transition-colors"
+                >
                   Add Language
                 </button>
               </div>
@@ -341,6 +384,20 @@ const App = () => {
         closeModal={closeLanguageJsonDialog}
         language={jsonDialogLanguage}
         jsonData={languageJsonData}
+      />
+
+      <AddLanguageDialog
+        isOpen={isAddLanguageDialogOpen}
+        closeModal={closeAddLanguageDialog}
+        handleAddLanguage={handleAddNewLanguage}
+        existingLanguages={projectLanguages.map(lang => lang.language_code)}
+      />
+
+      <UpdateMainLanguageDialog
+        isOpen={isUpdateMainLanguageDialogOpen}
+        closeModal={closeUpdateMainLanguageDialog}
+        handleUpdateMainLanguage={handleUpdateMainLanguage}
+        currentMainLanguage={mainLanguage}
       />
     </div>
   );
