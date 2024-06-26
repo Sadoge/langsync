@@ -39,11 +39,9 @@ const App = () => {
     }
   };
 
-  const handleProjectSelect = async (project) => {
+  const fetchTranslations = async (projectId) => {
     try {
-      setSelectedProject(project);
-
-      const { data: translationsData, error: translationsError } = await supabase.from('translations').select('*').eq('project_id', project.id);
+      const { data: translationsData, error: translationsError } = await supabase.from('translations').select('*').eq('project_id', projectId);
       if (translationsError) {
         console.error('Error fetching translations:', translationsError);
         return;
@@ -52,6 +50,15 @@ const App = () => {
         acc[key] = { main_value, translations };
         return acc;
       }, {}));
+    } catch (error) {
+      console.error('Unexpected error fetching translations:', error);
+    }
+  };
+
+  const handleProjectSelect = async (project) => {
+    try {
+      setSelectedProject(project);
+      await fetchTranslations(project.id);
 
       const { data: languagesData, error: languagesError } = await supabase.from('languages').select('language, is_main').eq('project_id', project.id);
       if (languagesError) {
@@ -68,32 +75,25 @@ const App = () => {
     }
   };
 
-  const handleTranslationSubmit = async () => {
+  const handleTranslationSubmit = async (newTranslations) => {
     try {
-      for (const [key, { main_value, translations: currentTranslations }] of Object.entries(translations)) {
-        if (selectedLanguage === mainLanguage) {
-          const updatedTranslations = await translate(main_value, currentTranslations || {});
-          const { error } = await supabase
-            .from('translations')
-            .upsert([{ project_id: selectedProject.id, key, main_value, translations: updatedTranslations }], {
-              onConflict: ['project_id', 'key']
-            });
-          if (error) {
-            console.error('Error updating translations:', error);
-          }
-        } else {
-          const { error } = await supabase
-            .from('translations')
-            .update({ translations: { ...currentTranslations, [selectedLanguage]: currentTranslations[selectedLanguage] } })
-            .eq('project_id', selectedProject.id)
-            .eq('key', key);
-          if (error) {
-            console.error('Error updating translations:', error);
-          }
+      const translationEntries = Object.entries(newTranslations);
+
+      for (const [key, main_value] of translationEntries) {
+        const updatedTranslations = await translate(main_value, {});
+        const { error } = await supabase
+          .from('translations')
+          .upsert([{ project_id: selectedProject.id, key, main_value, translations: updatedTranslations }], {
+            onConflict: ['project_id', 'key']
+          });
+        if (error) {
+          console.error('Error adding translations:', error);
         }
       }
+
+      await fetchTranslations(selectedProject.id);
     } catch (error) {
-      console.error('Unexpected error updating translations:', error);
+      console.error('Unexpected error adding translations:', error);
     }
   };
 
@@ -223,9 +223,9 @@ const App = () => {
   const closeLanguageJsonDialog = () => setIsLanguageJsonDialogOpen(false);
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-full bg-gray-100">
       <Sidebar projects={projects} handleProjectSelect={handleProjectSelect} openNewProjectDialog={openNewProjectDialog} />
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 ml-64 overflow-y-auto min-h-screen">
         {selectedProject && (
           <>
             <div className="mb-6">
@@ -300,8 +300,6 @@ const App = () => {
         translations={translations}
         selectedLanguage={selectedLanguage}
         mainLanguage={mainLanguage}
-        handleJsonChange={handleJsonChange}
-        jsonError={jsonError}
       />
 
       <LanguageJsonDialog
