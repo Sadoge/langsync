@@ -6,12 +6,18 @@ import { toast } from 'react-toastify';
 
 const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, fetchTranslations }) => {
   const [selectedLanguage, setSelectedLanguage] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const handleAddLanguage = async () => {
     if (!selectedLanguage) {
       toast.error('Please select a language');
       return;
     }
+
+    setIsProcessing(true);
+    setProgress(0);
+    toast.info('Adding new language and translating keys...');
 
     try {
       // Add the new language to the project
@@ -20,6 +26,7 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
         .insert([{ project_id: projectId, language_code: selectedLanguage, is_main: false }]);
       if (langError) {
         toast.error('Error adding new language: ' + langError.message);
+        setIsProcessing(false);
         return;
       }
 
@@ -32,6 +39,7 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
       if (fetchError) {
         toast.error('Error fetching existing translations: ' + fetchError.message);
         console.error('Error fetching existing translations:', fetchError);
+        setIsProcessing(false);
         return;
       }
 
@@ -65,6 +73,9 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
             console.error('Error updating translations:', updateError);
           }
         }
+
+        // Update progress
+        setProgress(Math.round(((i + 1) / keys.length) * 100));
       }
 
       // Refresh project languages and translations
@@ -75,6 +86,9 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
     } catch (error) {
       toast.error('Unexpected error adding new language and updating translations');
       console.error('Unexpected error adding new language and updating translations:', error);
+    } finally {
+      setIsProcessing(false);
+      setProgress(100);
     }
   };
 
@@ -119,6 +133,19 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
           Add Language
         </button>
       </div>
+      {isProcessing && (
+        <div className="mb-4">
+          <div className="relative pt-1">
+            <div className="overflow-hidden h-2 text-xs flex rounded bg-blue-200">
+              <div
+                style={{ width: `${progress}%` }}
+                className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500"
+              ></div>
+            </div>
+            <p className="text-center text-sm mt-2">{progress}%</p>
+          </div>
+        </div>
+      )}
       <div className="language-list">
         {projectLanguages.map((lang) => (
           <div key={lang.language_code} className="flex items-center justify-between mt-2">
