@@ -17,7 +17,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import supabase from './supabaseClient';
 import useFetchProjects from './hooks/useFetchProjects';
-import { languages } from './languages'; 
+import LanguageManager from './components/LanguageManager'; 
 
 const App = () => {
   const { session, user, signOut } = useAuth();
@@ -353,112 +353,95 @@ const App = () => {
   const openUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(true);
   const closeUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(false);
 
-  return (
-    <div className="flex h-full bg-gray-100">
-      {!session ? (
-        <Auth />
-      ) : (
-        <>
-          <Sidebar
-            projects={projects}
-            handleProjectSelect={handleProjectSelect}
-            openNewProjectDialog={openNewProjectDialog}
-            user={user}
-            onSignOut={signOut}
-          />
-          <div className="flex-1 p-6 ml-64 overflow-y-auto min-h-screen">
-            {isProcessing && <ProgressIndicator progress={progress} />} {/* Show progress indicator */}
-            {selectedProject && (
-              <>
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-semibold">Translations for {selectedProject.name}</h2>
-                    <div>
-                      <button onClick={openTranslationDialog} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors">
-                        Add Translation
-                      </button>
-                      <button onClick={openUpdateMainLanguageDialog} className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors">
-                        Update Main Language
-                      </button>
-                    </div>
-                  </div>
-                  <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} /> {/* Add search input */}
-                  <TranslationTable
-                    filteredTranslations={filteredTranslations}
-                    projectLanguages={projectLanguages}
-                    mainLanguage={mainLanguage}
-                    openLanguageJsonDialog={openLanguageJsonDialog}
-                  />
-                </div>
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold mb-2">Manage Languages</h3>
-                  <div className="flex">
-                    <button
-                      onClick={openAddLanguageDialog}
-                      className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-500 transition-colors"
-                    >
-                      Add Language
+  // App.js
+return (
+  <div className="flex h-full bg-gray-100">
+    {!session ? (
+      <Auth />
+    ) : (
+      <>
+        <Sidebar
+          projects={projects}
+          handleProjectSelect={handleProjectSelect}
+          openNewProjectDialog={openNewProjectDialog}
+          user={user}
+          onSignOut={signOut}
+        />
+        <div className="flex-1 p-6 ml-64 overflow-y-auto min-h-screen">
+          {isProcessing && <ProgressIndicator progress={progress} />}
+          {selectedProject && (
+            <>
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-semibold">Translations for {selectedProject.name}</h2>
+                  <div>
+                    <button onClick={openTranslationDialog} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors">
+                      Add Translation
+                    </button>
+                    <button onClick={openUpdateMainLanguageDialog} className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors">
+                      Update Main Language
                     </button>
                   </div>
-                  <div className="mt-4">
-                    {projectLanguages.map((lang) => (
-                      <div key={lang.language_code} className="flex items-center justify-between mt-2">
-                        <span>{languages.find(l => l.code === lang.language_code)?.name || lang.language_code}</span>
-                        <button
-                          onClick={() => handleDeleteLanguage(lang.language_code)}
-                          className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-500 transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
-              </>
-            )}
-          </div>
-        </>
-      )}
-  
-      <NewProjectDialog
-        isOpen={isProjectDialogOpen}
-        closeModal={closeNewProjectDialog}
-        handleNewProjectSubmit={handleNewProjectSubmit}
-      />
-  
-      <TranslationEditorDialog
-        isOpen={isTranslationDialogOpen}
-        closeModal={closeTranslationDialog}
-        handleTranslationSubmit={handleTranslationSubmit}
-        translations={translations}
-        selectedLanguage={selectedLanguage}
-        mainLanguage={mainLanguage}
-      />
-  
-      <LanguageJsonDialog
-        isOpen={isLanguageJsonDialogOpen}
-        closeModal={closeLanguageJsonDialog}
-        language={jsonDialogLanguage}
-        jsonData={languageJsonData}
-      />
-  
-      <AddLanguageDialog
-        isOpen={isAddLanguageDialogOpen}
-        closeModal={closeAddLanguageDialog}
-        handleAddLanguage={handleAddNewLanguage}
-        existingLanguages={projectLanguages.map(lang => lang.language_code)}
-      />
-  
-      <UpdateMainLanguageDialog
-        isOpen={isUpdateMainLanguageDialogOpen}
-        closeModal={closeUpdateMainLanguageDialog}
-        handleUpdateMainLanguage={handleUpdateMainLanguage}
-        currentMainLanguage={mainLanguage}
-      />
-  
-      <ToastContainer />
-    </div>
-  );  
+                <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+                <TranslationTable
+                  filteredTranslations={filteredTranslations}
+                  projectLanguages={projectLanguages}
+                  mainLanguage={mainLanguage}
+                  openLanguageJsonDialog={openLanguageJsonDialog}
+                />
+              </div>
+              <LanguageManager
+                projectId={selectedProject.id}
+                projectLanguages={projectLanguages}
+                fetchProjectLanguages={fetchProjectLanguages}
+                fetchTranslations={fetchTranslations}
+              />
+            </>
+          )}
+        </div>
+      </>
+    )}
+
+    <NewProjectDialog
+      isOpen={isProjectDialogOpen}
+      closeModal={closeNewProjectDialog}
+      handleNewProjectSubmit={handleNewProjectSubmit}
+    />
+
+    <TranslationEditorDialog
+      isOpen={isTranslationDialogOpen}
+      closeModal={closeTranslationDialog}
+      handleTranslationSubmit={handleTranslationSubmit}
+      translations={translations}
+      selectedLanguage={selectedLanguage}
+      mainLanguage={mainLanguage}
+    />
+
+    <LanguageJsonDialog
+      isOpen={isLanguageJsonDialogOpen}
+      closeModal={closeLanguageJsonDialog}
+      language={jsonDialogLanguage}
+      jsonData={languageJsonData}
+    />
+
+    <AddLanguageDialog
+      isOpen={isAddLanguageDialogOpen}
+      closeModal={closeAddLanguageDialog}
+      handleAddLanguage={handleAddNewLanguage}
+      existingLanguages={projectLanguages.map(lang => lang.language_code)}
+    />
+
+    <UpdateMainLanguageDialog
+      isOpen={isUpdateMainLanguageDialogOpen}
+      closeModal={closeUpdateMainLanguageDialog}
+      handleUpdateMainLanguage={handleUpdateMainLanguage}
+      currentMainLanguage={mainLanguage}
+    />
+
+    <ToastContainer />
+  </div>
+);  
 };
 
 export default App;
