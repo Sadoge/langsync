@@ -146,23 +146,72 @@ const App = () => {
 
   const handleAddNewLanguage = async (languageCode) => {
     try {
-      const { error } = await supabase
+      // Add the new language to the project
+      const { error: langError } = await supabase
         .from('project_languages')
         .insert([{ project_id: selectedProject.id, language_code: languageCode, is_main: false }]);
-      
-      if (error) {
-        toast.error('Error adding new language: ' + error.message);
-        console.error('Error adding new language:', error);
+  
+      if (langError) {
+        toast.error('Error adding new language: ' + langError.message);
+        console.error('Error adding new language:', langError);
         return;
       }
-
-      setProjectLanguages([...projectLanguages, { language_code: languageCode, is_main: false }]);
-      toast.success('Language added successfully');
+  
+      // Fetch existing translations
+      const { data: existingTranslations, error: fetchError } = await supabase
+        .from('translations')
+        .select('*')
+        .eq('project_id', selectedProject.id);
+  
+      if (fetchError) {
+        toast.error('Error fetching existing translations: ' + fetchError.message);
+        console.error('Error fetching existing translations:', fetchError);
+        return;
+      }
+  
+      // Extract keys and main values
+      const keys = existingTranslations.map(({ key }) => key);
+      const mainValues = existingTranslations.map(({ main_value }) => main_value);
+  
+      // Batch translate main values to the new language
+      const translations = await translateBatch(mainValues, languageCode, process.env.REACT_APP_OPENAI_API_KEY);
+  
+      // Update translations in database
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const main_value = mainValues[i];
+        const translation = translations[i];
+  
+        // Check if the translation for the new language already exists
+        const existingTranslation = existingTranslations.find(t => t.key === key && t.translations[languageCode]);
+  
+        // Only add the new translation if it doesn't already exist
+        if (!existingTranslation) {
+          const updatedTranslations = existingTranslations.find(t => t.key === key)?.translations || {};
+          updatedTranslations[languageCode] = translation;
+  
+          const { error: updateError } = await supabase
+            .from('translations')
+            .update({ translations: updatedTranslations })
+            .eq('project_id', selectedProject.id)
+            .eq('key', key);
+  
+          if (updateError) {
+            console.error('Error updating translations:', updateError);
+          }
+        }
+      }
+  
+      // Refresh project languages and translations
+      await fetchProjectLanguages(selectedProject.id);
+      await fetchTranslations(selectedProject.id);
+  
+      toast.success('Language added and translations updated successfully');
     } catch (error) {
-      toast.error('Unexpected error adding new language');
-      console.error('Unexpected error adding new language:', error);
+      toast.error('Unexpected error adding new language and updating translations');
+      console.error('Unexpected error adding new language and updating translations:', error);
     }
-  };
+  };   
 
   const handleUpdateMainLanguage = async (newMainLanguageCode) => {
     try {
