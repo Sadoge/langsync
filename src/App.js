@@ -17,6 +17,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import supabase from './supabaseClient';
 import useFetchProjects from './hooks/useFetchProjects';
+import { languages } from './languages'; 
 
 const App = () => {
   const { session, user, signOut } = useAuth();
@@ -45,27 +46,6 @@ const App = () => {
     await fetchProjectLanguages(project.id);
   };
 
-  const fetchTranslations = async (projectId) => {
-    try {
-      const { data: translationsData, error: translationsError } = await supabase.from('translations').select('*').eq('project_id', projectId);
-      if (translationsError) {
-        toast.error('Error fetching translations: ' + translationsError.message);
-        console.error('Error fetching translations:', translationsError);
-        return;
-      }
-      const translations = translationsData.reduce((acc, { key, main_value, translations }) => {
-        acc[key] = { main_value, translations };
-        return acc;
-      }, {});
-      setTranslations(translations);
-      setFilteredTranslations(translations); // Set filteredTranslations
-    } catch (error) {
-      toast.error('Unexpected error fetching translations');
-      console.error('Unexpected error fetching translations:', error);
-    }
-  };
-  
-
   const fetchProjectLanguages = async (projectId) => {
     try {
       const { data: projectLanguagesData, error: projectLanguagesError } = await supabase.from('project_languages').select('*').eq('project_id', projectId);
@@ -83,7 +63,27 @@ const App = () => {
       console.error('Unexpected error fetching project languages:', error);
     }
   };
-
+  
+  const fetchTranslations = async (projectId) => {
+    try {
+      const { data: translationsData, error: translationsError } = await supabase.from('translations').select('*').eq('project_id', projectId);
+      if (translationsError) {
+        toast.error('Error fetching translations: ' + translationsError.message);
+        console.error('Error fetching translations:', translationsError);
+        return;
+      }
+      const fetchedTranslations = translationsData.reduce((acc, { key, main_value, translations }) => {
+        acc[key] = { main_value, translations };
+        return acc;
+      }, {});
+      setTranslations(fetchedTranslations);
+      setFilteredTranslations(fetchedTranslations); // Ensure filtered translations are set
+    } catch (error) {
+      toast.error('Unexpected error fetching translations');
+      console.error('Unexpected error fetching translations:', error);
+    }
+  };  
+  
   const handleTranslationSubmit = async (newTranslations) => {
     setIsProcessing(true);
     try {
@@ -183,12 +183,11 @@ const App = () => {
         const translation = translations[i];
   
         // Check if the translation for the new language already exists
-        const existingTranslation = existingTranslations.find(t => t.key === key && t.translations[languageCode]);
+        const existingTranslation = existingTranslations.find(t => t.key === key);
   
         // Only add the new translation if it doesn't already exist
-        if (!existingTranslation) {
-          const updatedTranslations = existingTranslations.find(t => t.key === key)?.translations || {};
-          updatedTranslations[languageCode] = translation;
+        if (existingTranslation && !existingTranslation.translations[languageCode]) {
+          const updatedTranslations = { ...existingTranslation.translations, [languageCode]: translation };
   
           const { error: updateError } = await supabase
             .from('translations')
@@ -211,7 +210,63 @@ const App = () => {
       toast.error('Unexpected error adding new language and updating translations');
       console.error('Unexpected error adding new language and updating translations:', error);
     }
-  };   
+  };     
+
+  const handleDeleteLanguage = async (languageCode) => {
+    try {
+      // Delete the language from the project_languages table
+      const { error: langError } = await supabase
+        .from('project_languages')
+        .delete()
+        .eq('project_id', selectedProject.id)
+        .eq('language_code', languageCode);
+  
+      if (langError) {
+        toast.error('Error deleting language: ' + langError.message);
+        console.error('Error deleting language:', langError);
+        return;
+      }
+  
+      // Fetch existing translations
+      const { data: existingTranslations, error: fetchError } = await supabase
+        .from('translations')
+        .select('*')
+        .eq('project_id', selectedProject.id);
+  
+      if (fetchError) {
+        toast.error('Error fetching existing translations: ' + fetchError.message);
+        console.error('Error fetching existing translations:', fetchError);
+        return;
+      }
+  
+      // Update translations in the database
+      for (let translation of existingTranslations) {
+        if (translation.translations[languageCode]) {
+          const updatedTranslations = { ...translation.translations };
+          delete updatedTranslations[languageCode];
+  
+          const { error: updateError } = await supabase
+            .from('translations')
+            .update({ translations: updatedTranslations })
+            .eq('project_id', selectedProject.id)
+            .eq('key', translation.key);
+  
+          if (updateError) {
+            console.error('Error updating translations:', updateError);
+          }
+        }
+      }
+  
+      // Refresh project languages and translations
+      await fetchProjectLanguages(selectedProject.id);
+      await fetchTranslations(selectedProject.id);
+  
+      toast.success('Language deleted and translations updated successfully');
+    } catch (error) {
+      toast.error('Unexpected error deleting language and updating translations');
+      console.error('Unexpected error deleting language and updating translations:', error);
+    }
+  };  
 
   const handleUpdateMainLanguage = async (newMainLanguageCode) => {
     try {
@@ -299,8 +354,7 @@ const App = () => {
   const closeUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(false);
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
+    <div className="flex h-full bg-gray-100">
       {!session ? (
         <Auth />
       ) : (
@@ -337,7 +391,7 @@ const App = () => {
                   />
                 </div>
                 <div className="mt-6">
-                  <h3 className="text-lg font-semibold mb-2">Add New Language</h3>
+                  <h3 className="text-lg font-semibold mb-2">Manage Languages</h3>
                   <div className="flex">
                     <button
                       onClick={openAddLanguageDialog}
@@ -346,19 +400,32 @@ const App = () => {
                       Add Language
                     </button>
                   </div>
+                  <div className="mt-4">
+                    {projectLanguages.map((lang) => (
+                      <div key={lang.language_code} className="flex items-center justify-between mt-2">
+                        <span>{languages.find(l => l.code === lang.language_code)?.name || lang.language_code}</span>
+                        <button
+                          onClick={() => handleDeleteLanguage(lang.language_code)}
+                          className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-500 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             )}
           </div>
         </>
       )}
-
+  
       <NewProjectDialog
         isOpen={isProjectDialogOpen}
         closeModal={closeNewProjectDialog}
         handleNewProjectSubmit={handleNewProjectSubmit}
       />
-
+  
       <TranslationEditorDialog
         isOpen={isTranslationDialogOpen}
         closeModal={closeTranslationDialog}
@@ -367,29 +434,31 @@ const App = () => {
         selectedLanguage={selectedLanguage}
         mainLanguage={mainLanguage}
       />
-
+  
       <LanguageJsonDialog
         isOpen={isLanguageJsonDialogOpen}
         closeModal={closeLanguageJsonDialog}
         language={jsonDialogLanguage}
         jsonData={languageJsonData}
       />
-
+  
       <AddLanguageDialog
         isOpen={isAddLanguageDialogOpen}
         closeModal={closeAddLanguageDialog}
         handleAddLanguage={handleAddNewLanguage}
         existingLanguages={projectLanguages.map(lang => lang.language_code)}
       />
-
+  
       <UpdateMainLanguageDialog
         isOpen={isUpdateMainLanguageDialogOpen}
         closeModal={closeUpdateMainLanguageDialog}
         handleUpdateMainLanguage={handleUpdateMainLanguage}
         currentMainLanguage={mainLanguage}
       />
+  
+      <ToastContainer />
     </div>
-  );
+  );  
 };
 
 export default App;
