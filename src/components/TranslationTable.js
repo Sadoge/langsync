@@ -39,25 +39,13 @@ const TranslationTable = ({ filteredTranslations, projectLanguages, mainLanguage
           </tr>
         </thead>
         <tbody className="bg-white">
-          {Object.entries(filteredTranslations).map(([key, { main_value, translations }]) => (
-            <tr key={key}>
-              <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{key}</td>
-              <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">
-                {editableKey === key && editableLang === mainLanguage ? (
-                  <input
-                    type="text"
-                    value={tempValue}
-                    onChange={(e) => setTempValue(e.target.value)}
-                    onBlur={handleSave}
-                    className="w-full"
-                  />
-                ) : (
-                  <span onClick={() => handleEdit(key, mainLanguage, main_value)}>{main_value}</span>
-                )}
-              </td>
-              {projectLanguages.filter(lang => lang.language_code !== mainLanguage).map(lang => (
-                <td key={lang.language_code} className="border border-gray-200 px-4 py-2 text-sm text-gray-700">
-                  {editableKey === key && editableLang === lang.language_code ? (
+          {Object.entries(filteredTranslations)
+            .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+            .map(([key, { main_value, translations }]) => (
+              <tr key={key}>
+                <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">{key}</td>
+                <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">
+                  {editableKey === key && editableLang === mainLanguage ? (
                     <input
                       type="text"
                       value={tempValue}
@@ -66,13 +54,27 @@ const TranslationTable = ({ filteredTranslations, projectLanguages, mainLanguage
                       className="w-full"
                     />
                   ) : (
-                    <span onClick={() => handleEdit(key, lang.language_code, translations[lang.language_code])}>
-                      {translations[lang.language_code]}
-                    </span>
+                    <span onClick={() => handleEdit(key, mainLanguage, main_value)}>{main_value}</span>
                   )}
                 </td>
-              ))}
-            </tr>
+                {projectLanguages.filter(lang => lang.language_code !== mainLanguage).map(lang => (
+                  <td key={lang.language_code} className="border border-gray-200 px-4 py-2 text-sm text-gray-700">
+                    {editableKey === key && editableLang === lang.language_code ? (
+                      <input
+                        type="text"
+                        value={tempValue}
+                        onChange={(e) => setTempValue(e.target.value)}
+                        onBlur={handleSave}
+                        className="w-full"
+                      />
+                    ) : (
+                      <span onClick={() => handleEdit(key, lang.language_code, translations[lang.language_code])}>
+                        {translations[lang.language_code]}
+                      </span>
+                    )}
+                  </td>
+                ))}
+              </tr>
           ))}
         </tbody>
       </table>
