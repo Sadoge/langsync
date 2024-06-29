@@ -12,7 +12,7 @@ import UpdateMainLanguageDialog from './components/UpdateMainLanguageDialog';
 import Auth from './components/Auth';
 import { useAuth } from './context/AuthContext';
 import { createProject } from './services/projectService';
-import { addTranslations } from './services/translationService';
+import { translateBatch } from './services/translationService';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import supabase from './supabaseClient';
@@ -87,9 +87,44 @@ const App = () => {
   const handleTranslationSubmit = async (newTranslations) => {
     setIsProcessing(true);
     try {
-      const progressUpdates = await addTranslations(selectedProject.id, newTranslations, projectLanguages, mainLanguage, process.env.REACT_APP_OPENAI_API_KEY);
-      progressUpdates.forEach(progress => setProgress(progress));
+      const keys = Object.keys(newTranslations);
+      const mainValues = keys.map(key => newTranslations[key]);
+  
+      // Batch translate main values
+      const batchTranslations = await Promise.all(
+        projectLanguages.map(async ({ language_code }) => {
+          if (language_code !== mainLanguage) {
+            const translations = await translateBatch(mainValues, language_code, process.env.REACT_APP_OPENAI_API_KEY);
+            return { language_code, translations };
+          }
+          return null;
+        })
+      );
+  
+      // Update translations in database
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const main_value = mainValues[i];
+        const translations = batchTranslations.reduce((acc, batch) => {
+          if (batch && batch.translations[i]) {
+            acc[batch.language_code] = batch.translations[i];
+          }
+          return acc;
+        }, {});
+  
+        const { error } = await supabase
+          .from('translations')
+          .upsert([{ project_id: selectedProject.id, key, main_value, translations }], {
+            onConflict: ['project_id', 'key']
+          });
+  
+        if (error) {
+          console.error('Error adding translations:', error);
+        }
+      }
+  
       toast.success('Translations added successfully');
+      fetchTranslations(selectedProject.id);
     } catch (error) {
       toast.error('Unexpected error adding translations');
       console.error('Unexpected error adding translations:', error);
