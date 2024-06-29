@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './index.css';
 import Sidebar from './components/Sidebar';
 import TranslationTable from './components/TranslationTable';
@@ -7,7 +7,6 @@ import TranslationEditorDialog from './components/TranslationEditorDialog';
 import LanguageJsonDialog from './components/LanguageJsonDialog';
 import ProgressIndicator from './components/ProgressIndicator';
 import SearchInput from './components/SearchInput';
-import AddLanguageDialog from './components/AddLanguageDialog';
 import UpdateMainLanguageDialog from './components/UpdateMainLanguageDialog';
 import Auth from './components/Auth';
 import { useAuth } from './context/AuthContext';
@@ -31,14 +30,12 @@ const App = () => {
   const [filteredTranslations, setFilteredTranslations] = useState({});
   const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
   const [isLanguageJsonDialogOpen, setIsLanguageJsonDialogOpen] = useState(false);
-  const [isAddLanguageDialogOpen, setIsAddLanguageDialogOpen] = useState(false);
   const [isUpdateMainLanguageDialogOpen, setIsUpdateMainLanguageDialogOpen] = useState(false);
   const [languageJsonData, setLanguageJsonData] = useState({});
   const [jsonDialogLanguage, setJsonDialogLanguage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [jsonError, setJsonError] = useState(null); // Define jsonError state
 
   const handleProjectSelect = async (project) => {
     setSelectedProject(project);
@@ -212,59 +209,43 @@ const App = () => {
     }
   };     
 
-  const handleDeleteLanguage = async (languageCode) => {
+  const handleUpdateTranslation = async (key, lang, newValue) => {
     try {
-      // Delete the language from the project_languages table
-      const { error: langError } = await supabase
-        .from('project_languages')
-        .delete()
-        .eq('project_id', selectedProject.id)
-        .eq('language_code', languageCode);
+      const existingTranslation = translations[key];
   
-      if (langError) {
-        toast.error('Error deleting language: ' + langError.message);
-        console.error('Error deleting language:', langError);
-        return;
+      if (lang === mainLanguage) {
+        existingTranslation.main_value = newValue;
+      } else {
+        existingTranslation.translations[lang] = newValue;
       }
   
-      // Fetch existing translations
-      const { data: existingTranslations, error: fetchError } = await supabase
+      const { error } = await supabase
         .from('translations')
-        .select('*')
-        .eq('project_id', selectedProject.id);
+        .update({
+          main_value: existingTranslation.main_value,
+          translations: existingTranslation.translations
+        })
+        .eq('project_id', selectedProject.id)
+        .eq('key', key);
   
-      if (fetchError) {
-        toast.error('Error fetching existing translations: ' + fetchError.message);
-        console.error('Error fetching existing translations:', fetchError);
+      if (error) {
+        toast.error('Error updating translation: ' + error.message);
+        console.error('Error updating translation:', error);
         return;
       }
   
-      // Update translations in the database
-      for (let translation of existingTranslations) {
-        if (translation.translations[languageCode]) {
-          const updatedTranslations = { ...translation.translations };
-          delete updatedTranslations[languageCode];
-  
-          const { error: updateError } = await supabase
-            .from('translations')
-            .update({ translations: updatedTranslations })
-            .eq('project_id', selectedProject.id)
-            .eq('key', translation.key);
-  
-          if (updateError) {
-            console.error('Error updating translations:', updateError);
-          }
-        }
-      }
-  
-      // Refresh project languages and translations
-      await fetchProjectLanguages(selectedProject.id);
-      await fetchTranslations(selectedProject.id);
-  
-      toast.success('Language deleted and translations updated successfully');
+      setTranslations({
+        ...translations,
+        [key]: existingTranslation
+      });
+      setFilteredTranslations({
+        ...filteredTranslations,
+        [key]: existingTranslation
+      });
+      toast.success('Translation updated successfully');
     } catch (error) {
-      toast.error('Unexpected error deleting language and updating translations');
-      console.error('Unexpected error deleting language and updating translations:', error);
+      toast.error('Unexpected error updating translation');
+      console.error('Unexpected error updating translation:', error);
     }
   };  
 
@@ -304,29 +285,6 @@ const App = () => {
     }
   };
 
-  const handleJsonChange = (e) => {
-    try {
-      const parsedJson = JSON.parse(e.target.value);
-      setJsonError(null);
-      setTranslations(
-        Object.fromEntries(
-          Object.entries(parsedJson).map(([key, value]) => [
-            key, {
-              main_value: selectedLanguage === mainLanguage ? value : translations[key]?.main_value,
-              translations: {
-                ...translations[key]?.translations,
-                [selectedLanguage]: selectedLanguage !== mainLanguage ? value : translations[key]?.translations[selectedLanguage]
-              }
-            }
-          ])
-        )
-      );
-    } catch (error) {
-      setJsonError('Invalid JSON format');
-      toast.error('Invalid JSON format');
-    }
-  };
-
   const openNewProjectDialog = () => setIsProjectDialogOpen(true);
   const closeNewProjectDialog = () => setIsProjectDialogOpen(false);
 
@@ -347,101 +305,91 @@ const App = () => {
   };
   const closeLanguageJsonDialog = () => setIsLanguageJsonDialogOpen(false);
 
-  const openAddLanguageDialog = () => setIsAddLanguageDialogOpen(true);
-  const closeAddLanguageDialog = () => setIsAddLanguageDialogOpen(false);
-
   const openUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(true);
   const closeUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(false);
 
-  // App.js
-return (
-  <div className="flex h-full bg-gray-100">
-    {!session ? (
-      <Auth />
-    ) : (
-      <>
-        <Sidebar
-          projects={projects}
-          handleProjectSelect={handleProjectSelect}
-          openNewProjectDialog={openNewProjectDialog}
-          user={user}
-          onSignOut={signOut}
-        />
-        <div className="flex-1 p-6 ml-64 overflow-y-auto min-h-screen">
-          {isProcessing && <ProgressIndicator progress={progress} />}
-          {selectedProject && (
-            <>
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-semibold">Translations for {selectedProject.name}</h2>
-                  <div>
-                    <button onClick={openTranslationDialog} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors">
-                      Add Translation
-                    </button>
-                    <button onClick={openUpdateMainLanguageDialog} className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors">
-                      Update Main Language
-                    </button>
+  return (
+    <div className="flex h-full bg-gray-100">
+      {!session ? (
+        <Auth />
+      ) : (
+        <>
+          <Sidebar
+            projects={projects}
+            handleProjectSelect={handleProjectSelect}
+            openNewProjectDialog={openNewProjectDialog}
+            user={user}
+            onSignOut={signOut}
+          />
+          <div className="flex-1 p-6 ml-64 overflow-y-auto min-h-screen">
+            {isProcessing && <ProgressIndicator progress={progress} />}
+            {selectedProject && (
+              <>
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-semibold">Translations for {selectedProject.name}</h2>
+                    <div>
+                      <button onClick={openTranslationDialog} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors">
+                        Add Translation
+                      </button>
+                      <button onClick={openUpdateMainLanguageDialog} className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors">
+                        Update Main Language
+                      </button>
+                    </div>
                   </div>
+                  <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+                  <TranslationTable
+                    filteredTranslations={filteredTranslations}
+                    projectLanguages={projectLanguages}
+                    mainLanguage={mainLanguage}
+                    openLanguageJsonDialog={openLanguageJsonDialog}
+                    handleUpdateTranslation={handleUpdateTranslation}
+                  />
                 </div>
-                <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
-                <TranslationTable
-                  filteredTranslations={filteredTranslations}
+                <LanguageManager
+                  projectId={selectedProject.id}
                   projectLanguages={projectLanguages}
-                  mainLanguage={mainLanguage}
-                  openLanguageJsonDialog={openLanguageJsonDialog}
+                  fetchProjectLanguages={fetchProjectLanguages}
+                  fetchTranslations={fetchTranslations}
                 />
-              </div>
-              <LanguageManager
-                projectId={selectedProject.id}
-                projectLanguages={projectLanguages}
-                fetchProjectLanguages={fetchProjectLanguages}
-                fetchTranslations={fetchTranslations}
-              />
-            </>
-          )}
-        </div>
-      </>
-    )}
-
-    <NewProjectDialog
-      isOpen={isProjectDialogOpen}
-      closeModal={closeNewProjectDialog}
-      handleNewProjectSubmit={handleNewProjectSubmit}
-    />
-
-    <TranslationEditorDialog
-      isOpen={isTranslationDialogOpen}
-      closeModal={closeTranslationDialog}
-      handleTranslationSubmit={handleTranslationSubmit}
-      translations={translations}
-      selectedLanguage={selectedLanguage}
-      mainLanguage={mainLanguage}
-    />
-
-    <LanguageJsonDialog
-      isOpen={isLanguageJsonDialogOpen}
-      closeModal={closeLanguageJsonDialog}
-      language={jsonDialogLanguage}
-      jsonData={languageJsonData}
-    />
-
-    <AddLanguageDialog
-      isOpen={isAddLanguageDialogOpen}
-      closeModal={closeAddLanguageDialog}
-      handleAddLanguage={handleAddNewLanguage}
-      existingLanguages={projectLanguages.map(lang => lang.language_code)}
-    />
-
-    <UpdateMainLanguageDialog
-      isOpen={isUpdateMainLanguageDialogOpen}
-      closeModal={closeUpdateMainLanguageDialog}
-      handleUpdateMainLanguage={handleUpdateMainLanguage}
-      currentMainLanguage={mainLanguage}
-    />
-
-    <ToastContainer />
-  </div>
-);  
+              </>
+            )}
+          </div>
+        </>
+      )}
+  
+      <NewProjectDialog
+        isOpen={isProjectDialogOpen}
+        closeModal={closeNewProjectDialog}
+        handleNewProjectSubmit={handleNewProjectSubmit}
+      />
+  
+      <TranslationEditorDialog
+        isOpen={isTranslationDialogOpen}
+        closeModal={closeTranslationDialog}
+        handleTranslationSubmit={handleTranslationSubmit}
+        translations={translations}
+        selectedLanguage={selectedLanguage}
+        mainLanguage={mainLanguage}
+      />
+  
+      <LanguageJsonDialog
+        isOpen={isLanguageJsonDialogOpen}
+        closeModal={closeLanguageJsonDialog}
+        language={jsonDialogLanguage}
+        jsonData={languageJsonData}
+      />
+  
+      <UpdateMainLanguageDialog
+        isOpen={isUpdateMainLanguageDialogOpen}
+        closeModal={closeUpdateMainLanguageDialog}
+        handleUpdateMainLanguage={handleUpdateMainLanguage}
+        currentMainLanguage={mainLanguage}
+      />
+  
+      <ToastContainer />
+    </div>
+  );    
 };
 
 export default App;
