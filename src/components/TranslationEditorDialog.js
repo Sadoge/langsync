@@ -1,17 +1,25 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 
-const TranslationEditorDialog = ({ isOpen, closeModal, handleTranslationSubmit, translations, selectedLanguage, mainLanguage }) => {
-  const [newTranslations, setNewTranslations] = useState({});
+const TranslationEditorDialog = ({ isOpen, closeModal, handleTranslationSubmit }) => {
+  const [jsonInput, setJsonInput] = useState('{}');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setNewTranslations({ ...newTranslations, [name]: value });
+  const handleJsonChange = (e) => {
+    setJsonInput(e.target.value);
   };
 
   const handleSubmit = async () => {
+    let newTranslations;
+
+    try {
+      newTranslations = JSON.parse(jsonInput);
+    } catch (error) {
+      toast.error('Invalid JSON format');
+      return;
+    }
+
     if (!Object.keys(newTranslations).length) {
       toast.error('Please enter some translations');
       return;
@@ -22,8 +30,8 @@ const TranslationEditorDialog = ({ isOpen, closeModal, handleTranslationSubmit, 
     toast.info('Adding new translations...');
 
     try {
-      await handleTranslationSubmit(newTranslations);
-      setNewTranslations({});
+      await handleTranslationSubmit(newTranslations, setProgress);
+      setJsonInput('{}');
       toast.success('Translations added successfully');
       closeModal();
     } catch (error) {
@@ -36,28 +44,20 @@ const TranslationEditorDialog = ({ isOpen, closeModal, handleTranslationSubmit, 
   };
 
   return (
-    <div className={`modal ${isOpen ? 'block' : 'hidden'}`}>
-      <div className="modal-overlay" onClick={closeModal}></div>
-      <div className="modal-container">
-        <div className="modal-header">
-          <h2 className="modal-title">Add New Translations</h2>
-          <button className="modal-close" onClick={closeModal}>&times;</button>
+    <div className={`modal ${isOpen ? 'fixed' : 'hidden'} inset-0 z-50 flex items-center justify-center`}>
+      <div className="modal-overlay fixed inset-0 bg-gray-900 opacity-50" onClick={closeModal}></div>
+      <div className="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded shadow-lg z-50 overflow-y-auto">
+        <div className="modal-header p-4 border-b">
+          <h2 className="modal-title text-lg font-semibold">Add New Translations</h2>
+          <button className="modal-close text-gray-700 hover:text-gray-900" onClick={closeModal}>&times;</button>
         </div>
-        <div className="modal-body">
-          <form>
-            {Object.keys(translations).map((key) => (
-              <div key={key} className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">{key}</label>
-                <input
-                  type="text"
-                  name={key}
-                  value={newTranslations[key] || ''}
-                  onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                />
-              </div>
-            ))}
-          </form>
+        <div className="modal-body p-4">
+          <textarea
+            value={jsonInput}
+            onChange={handleJsonChange}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            rows="10"
+          ></textarea>
           {isProcessing && (
             <div className="mb-4">
               <div className="relative pt-1">
@@ -72,9 +72,9 @@ const TranslationEditorDialog = ({ isOpen, closeModal, handleTranslationSubmit, 
             </div>
           )}
         </div>
-        <div className="modal-footer">
-          <button onClick={handleSubmit} className="btn btn-primary">Save</button>
-          <button onClick={closeModal} className="btn btn-secondary">Cancel</button>
+        <div className="modal-footer p-4 border-t">
+          <button onClick={handleSubmit} className="btn btn-primary bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-400">Save</button>
+          <button onClick={closeModal} className="btn btn-secondary bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 ml-2">Cancel</button>
         </div>
       </div>
     </div>

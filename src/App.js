@@ -81,7 +81,7 @@ const App = () => {
     }
   };  
   
-  const handleTranslationSubmit = async (newTranslations) => {
+  const handleTranslationSubmit = async (newTranslations, setProgress) => {
     setIsProcessing(true);
     setProgress(0);
   
@@ -134,7 +134,7 @@ const App = () => {
       setIsProcessing(false);
       setProgress(100);
     }
-  };  
+  };   
 
   const handleNewProjectSubmit = async (newProjectName, mainLanguageCode) => {
     try {
@@ -184,6 +184,31 @@ const App = () => {
     } catch (error) {
       toast.error('Unexpected error updating translation');
       console.error('Unexpected error updating translation:', error);
+    }
+  };  
+
+  const handleDeleteTranslationKey = async (key) => {
+    try {
+      const { error } = await supabase
+        .from('translations')
+        .delete()
+        .eq('project_id', selectedProject.id)
+        .eq('key', key);
+  
+      if (error) {
+        toast.error('Error deleting translation key: ' + error.message);
+        console.error('Error deleting translation key:', error);
+        return;
+      }
+  
+      const updatedTranslations = { ...translations };
+      delete updatedTranslations[key];
+      setTranslations(updatedTranslations);
+      setFilteredTranslations(updatedTranslations);
+      toast.success('Translation key deleted successfully');
+    } catch (error) {
+      toast.error('Unexpected error deleting translation key');
+      console.error('Unexpected error deleting translation key:', error);
     }
   };  
 
@@ -282,6 +307,7 @@ const App = () => {
                     mainLanguage={mainLanguage}
                     openLanguageJsonDialog={openLanguageJsonDialog}
                     handleUpdateTranslation={handleUpdateTranslation}
+                    handleDeleteTranslationKey={handleDeleteTranslationKey}
                   />
                 </div>
                 <LanguageManager
@@ -327,7 +353,7 @@ const App = () => {
   
       <ToastContainer />
     </div>
-  );    
+  );      
 };
 
 export default App;

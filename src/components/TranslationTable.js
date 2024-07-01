@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const TranslationTable = ({ filteredTranslations, projectLanguages, mainLanguage, openLanguageJsonDialog, handleUpdateTranslation }) => {
+const TranslationTable = ({ filteredTranslations, projectLanguages, mainLanguage, openLanguageJsonDialog, handleUpdateTranslation, handleDeleteTranslationKey }) => {
   const [editableKey, setEditableKey] = useState(null);
   const [editableLang, setEditableLang] = useState(null);
   const [tempValue, setTempValue] = useState('');
@@ -36,6 +36,7 @@ const TranslationTable = ({ filteredTranslations, projectLanguages, mainLanguage
                 </button>
               </th>
             ))}
+            <th className="border border-gray-200 px-4 py-2 text-left text-sm font-medium text-gray-700">Actions</th>
           </tr>
         </thead>
         <tbody className="bg-white">
@@ -74,8 +75,16 @@ const TranslationTable = ({ filteredTranslations, projectLanguages, mainLanguage
                     )}
                   </td>
                 ))}
+                <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">
+                  <button
+                    onClick={() => handleDeleteTranslationKey(key)}
+                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-500 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
-          ))}
+            ))}
         </tbody>
       </table>
     </div>
