@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import supabase from '../supabaseClient';
-import { languages } from '../languages';
-import { translateBatch } from '../services/translationService';
 import { toast } from 'react-toastify';
+import supabase from '../supabaseClient';
+import { translateBatch } from '../services/translationService';
+import { languages } from '../languages'; // Ensure you have this import
 
 const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, fetchTranslations }) => {
   const [selectedLanguage, setSelectedLanguage] = useState('');
@@ -14,19 +14,89 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
       toast.error('Please select a language');
       return;
     }
-
+  
     setIsProcessing(true);
     setProgress(0);
     toast.info('Adding new language and translating keys...');
-
+  
     try {
       // Add the new language to the project
       const { error: langError } = await supabase
         .from('project_languages')
         .insert([{ project_id: projectId, language_code: selectedLanguage, is_main: false }]);
       if (langError) {
-        toast.error('Error adding new language: ' + langError.message);
-        setIsProcessing(false);
+        throw new Error('Error adding new language: ' + langError.message);
+      }
+  
+      // Fetch existing translations
+      const { data: existingTranslations, error: fetchError } = await supabase
+        .from('translations')
+        .select('*')
+        .eq('project_id', projectId);
+  
+      if (fetchError) {
+        throw new Error('Error fetching existing translations: ' + fetchError.message);
+      }
+  
+      // Extract keys and main values
+      const keys = existingTranslations.map(({ key }) => key);
+      const mainValues = existingTranslations.map(({ main_value }) => main_value);
+  
+      // Batch translate main values to the new language
+      const translations = await translateBatch(mainValues, selectedLanguage, process.env.REACT_APP_OPENAI_API_KEY);
+  
+      // Update translations in database
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const main_value = mainValues[i];
+        const translation = translations[i];
+  
+        // Check if the translation for the new language already exists
+        const existingTranslation = existingTranslations.find(t => t.key === key);
+  
+        // Only add the new translation if it doesn't already exist
+        if (existingTranslation) {
+          const updatedTranslations = { ...existingTranslation.translations, [selectedLanguage]: translation };
+  
+          const { error: updateError } = await supabase
+            .from('translations')
+            .update({ translations: updatedTranslations })
+            .eq('project_id', projectId)
+            .eq('key', key);
+  
+          if (updateError) {
+            throw new Error('Error updating translations: ' + updateError.message);
+          }
+        }
+  
+        // Update progress
+        setProgress(Math.round(((i + 1) / keys.length) * 100));
+      }
+  
+      // Refresh project languages and translations
+      await fetchProjectLanguages(projectId);
+      await fetchTranslations(projectId);
+  
+      toast.success('Language added and translations updated successfully');
+    } catch (error) {
+      toast.error('Unexpected error adding new language and updating translations: ' + error.message);
+      console.error('Unexpected error adding new language and updating translations:', error);
+    } finally {
+      setIsProcessing(false);
+      setProgress(100);
+    }
+  };  
+  
+  const handleDeleteLanguage = async (languageCode) => {
+    try {
+      // Delete language from project_languages table
+      const { error: langError } = await supabase
+        .from('project_languages')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('language_code', languageCode);
+      if (langError) {
+        toast.error('Error deleting language: ' + langError.message);
         return;
       }
 
@@ -37,31 +107,14 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
         .eq('project_id', projectId);
 
       if (fetchError) {
-        toast.error('Error fetching existing translations: ' + fetchError.message);
-        console.error('Error fetching existing translations:', fetchError);
-        setIsProcessing(false);
-        return;
+        throw new Error('Error fetching existing translations: ' + fetchError.message);
       }
 
-      // Extract keys and main values
-      const keys = existingTranslations.map(({ key }) => key);
-      const mainValues = existingTranslations.map(({ main_value }) => main_value);
-
-      // Batch translate main values to the new language
-      const translations = await translateBatch(mainValues, selectedLanguage, process.env.REACT_APP_OPENAI_API_KEY);
-
-      // Update translations in database
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        const main_value = mainValues[i];
-        const translation = translations[i];
-
-        // Check if the translation for the new language already exists
-        const existingTranslation = existingTranslations.find(t => t.key === key);
-
-        // Only add the new translation if it doesn't already exist
-        if (existingTranslation && !existingTranslation.translations[selectedLanguage]) {
-          const updatedTranslations = { ...existingTranslation.translations, [selectedLanguage]: translation };
+      // Remove the specific language translations but keep the keys
+      for (let i = 0; i < existingTranslations.length; i++) {
+        const { key, translations } = existingTranslations[i];
+        if (translations[languageCode]) {
+          const { [languageCode]: _, ...updatedTranslations } = translations; // Remove the specific language
 
           const { error: updateError } = await supabase
             .from('translations')
@@ -73,36 +126,8 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
             console.error('Error updating translations:', updateError);
           }
         }
-
-        // Update progress
-        setProgress(Math.round(((i + 1) / keys.length) * 100));
       }
 
-      // Refresh project languages and translations
-      await fetchProjectLanguages(projectId);
-      await fetchTranslations(projectId);
-
-      toast.success('Language added and translations updated successfully');
-    } catch (error) {
-      toast.error('Unexpected error adding new language and updating translations');
-      console.error('Unexpected error adding new language and updating translations:', error);
-    } finally {
-      setIsProcessing(false);
-      setProgress(100);
-    }
-  };
-
-  const handleDeleteLanguage = async (languageCode) => {
-    try {
-      const { error: langError } = await supabase
-        .from('project_languages')
-        .delete()
-        .eq('project_id', projectId)
-        .eq('language_code', languageCode);
-      if (langError) {
-        toast.error('Error deleting language: ' + langError.message);
-        return;
-      }
       await fetchProjectLanguages(projectId);
       await fetchTranslations(projectId);
       toast.success('Language deleted successfully');

@@ -100,17 +100,24 @@ const App = () => {
         })
       );
   
-      // Update translations in database
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        const main_value = mainValues[i];
+      // Ensure that the translations are correctly mapped back to their original keys
+      const updatedTranslations = keys.map((key, index) => {
+        const main_value = mainValues[index];
         const translations = batchTranslations.reduce((acc, batch) => {
-          if (batch && batch.translations[i]) {
-            acc[batch.language_code] = batch.translations[i];
+          if (batch && batch.translations.length === keys.length) {
+            acc[batch.language_code] = batch.translations[index];
+          } else if (batch) {
+            console.error(`Mismatch for language: ${batch.language_code}`);
+            acc[batch.language_code] = ""; // Handle mismatch by setting an empty string or appropriate fallback
           }
           return acc;
         }, {});
+        return { key, main_value, translations };
+      });
   
+      // Update translations in database
+      for (let i = 0; i < updatedTranslations.length; i++) {
+        const { key, main_value, translations } = updatedTranslations[i];
         const { error } = await supabase
           .from('translations')
           .upsert([{ project_id: selectedProject.id, key, main_value, translations }], {
@@ -134,7 +141,7 @@ const App = () => {
       setIsProcessing(false);
       setProgress(100);
     }
-  };   
+  };  
 
   const handleNewProjectSubmit = async (newProjectName, mainLanguageCode) => {
     try {
