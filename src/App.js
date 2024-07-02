@@ -17,6 +17,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import supabase from './supabaseClient';
 import useFetchProjects from './hooks/useFetchProjects';
 import LanguageManager from './components/LanguageManager'; 
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons';
 
 const App = () => {
   const { session, user, signOut } = useAuth();
@@ -278,6 +280,12 @@ const App = () => {
   const openUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(true);
   const closeUpdateMainLanguageDialog = () => setIsUpdateMainLanguageDialogOpen(false);
 
+  const [isLanguageManagerOpen, setIsLanguageManagerOpen] = useState(false);
+
+  const toggleLanguageManager = () => {
+    setIsLanguageManagerOpen(!isLanguageManagerOpen);
+  };
+
   return (
     <div className="flex h-full bg-gray-100">
       {!session ? (
@@ -307,13 +315,25 @@ const App = () => {
                       </button>
                     </div>
                   </div>
-                  <LanguageManager
-                    projectId={selectedProject.id}
-                    projectLanguages={projectLanguages}
-                    fetchProjectLanguages={fetchProjectLanguages}
-                    fetchTranslations={fetchTranslations}
-                  />
-                  <br></br>
+                  <div className="mb-4">
+                    <button
+                      onClick={toggleLanguageManager}
+                      className="flex items-center px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 transition-colors"
+                    >
+                      {isLanguageManagerOpen ? <FontAwesomeIcon icon={faChevronUp} className="mr-2" /> : <FontAwesomeIcon icon={faChevronDown} className="mr-2" />}
+                       Manage Languages
+                    </button>
+                    {isLanguageManagerOpen && (
+                      <div className="mt-4 p-4 bg-white rounded shadow-md">
+                        <LanguageManager
+                          projectId={selectedProject.id}
+                          projectLanguages={projectLanguages}
+                          fetchProjectLanguages={fetchProjectLanguages}
+                          fetchTranslations={fetchTranslations}
+                        />
+                      </div>
+                    )}
+                  </div>
                   <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
                   <TranslationTable
                     filteredTranslations={filteredTranslations}
@@ -329,13 +349,11 @@ const App = () => {
           </div>
         </>
       )}
-  
       <NewProjectDialog
         isOpen={isProjectDialogOpen}
         closeModal={closeNewProjectDialog}
         handleNewProjectSubmit={handleNewProjectSubmit}
       />
-  
       <TranslationEditorDialog
         isOpen={isTranslationDialogOpen}
         closeModal={closeTranslationDialog}
@@ -344,21 +362,18 @@ const App = () => {
         selectedLanguage={selectedLanguage}
         mainLanguage={mainLanguage}
       />
-  
       <LanguageJsonDialog
         isOpen={isLanguageJsonDialogOpen}
         closeModal={closeLanguageJsonDialog}
         language={jsonDialogLanguage}
         jsonData={languageJsonData}
       />
-  
       <UpdateMainLanguageDialog
         isOpen={isUpdateMainLanguageDialogOpen}
         closeModal={closeUpdateMainLanguageDialog}
         handleUpdateMainLanguage={handleUpdateMainLanguage}
         currentMainLanguage={mainLanguage}
       />
-  
       <ToastContainer />
     </div>
   );      

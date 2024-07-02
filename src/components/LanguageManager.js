@@ -139,7 +139,6 @@ const LanguageManager = ({ projectId, projectLanguages, fetchProjectLanguages, f
 
   return (
     <div className="language-manager">
-      <h3 className="text-lg font-semibold mb-2">Manage Languages</h3>
       <div className="mb-4">
         <select
           value={selectedLanguage}
