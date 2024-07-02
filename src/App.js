@@ -307,6 +307,13 @@ const App = () => {
                       </button>
                     </div>
                   </div>
+                  <LanguageManager
+                    projectId={selectedProject.id}
+                    projectLanguages={projectLanguages}
+                    fetchProjectLanguages={fetchProjectLanguages}
+                    fetchTranslations={fetchTranslations}
+                  />
+                  <br></br>
                   <SearchInput searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
                   <TranslationTable
                     filteredTranslations={filteredTranslations}
@@ -317,12 +324,6 @@ const App = () => {
                     handleDeleteTranslationKey={handleDeleteTranslationKey}
                   />
                 </div>
-                <LanguageManager
-                  projectId={selectedProject.id}
-                  projectLanguages={projectLanguages}
-                  fetchProjectLanguages={fetchProjectLanguages}
-                  fetchTranslations={fetchTranslations}
-                />
               </>
             )}
           </div>
